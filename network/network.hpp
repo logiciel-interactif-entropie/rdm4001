@@ -15,7 +15,7 @@
 
 #define NETWORK_STREAM_META 0
 #define NETWORK_STREAM_ENTITY 1
-#define NETWORK_STREAM_EVENT 3
+#define NETWORK_STREAM_EVENT 1
 #define NETWORK_STREAM_MAX 4
 
 #define NETWORK_DISCONNECT_FORCED 0
@@ -56,8 +56,6 @@ struct Peer {
   Peer();
 };
 
-typedef Signal<NetworkManager*, CustomEventID, BitStream> CustomEventSignal;
-
 typedef std::function<Entity*(NetworkManager*, EntityId)>
     EntityConstructorFunction;
 
@@ -88,8 +86,6 @@ class NetworkManager {
   std::map<std::string, EntityConstructorFunction> constructors;
   std::unordered_map<EntityId, std::unique_ptr<Entity>> entities;
 
-  std::unordered_map<CustomEventID, CustomEventSignal> customSignals;
-
   CustomEventList queuedEvents;
   std::vector<std::string> pendingCvars;
   std::vector<EntityId> pendingUpdates;
@@ -100,6 +96,8 @@ class NetworkManager {
   ClosureId cvarChangingUpdate;
 
  public:
+  typedef Signal<BitStream&> CustomEventSignal;
+
   NetworkManager(World* world);
   ~NetworkManager();
 
@@ -175,15 +173,20 @@ class NetworkManager {
     pendingRconCommands.push_back({password, command});
   }
 
-  void sendCustomEvent(CustomEventID id, BitStream stream);
+  void sendCustomEvent(CustomEventID id, BitStream& stream);
   // server only, send to player
-  void sendCustomEvent(int peerId, CustomEventID id, BitStream stream);
+  void sendCustomEvent(int peerId, CustomEventID id, BitStream& stream);
+
+  CustomEventSignal& getSignal(CustomEventID id) { return customSignals[id]; }
 
   ClosureId addCustomEventListener(CustomEventID id,
-                                   CustomEventSignal::Function);
+                                   CustomEventSignal::Function listener);
   void removeCustomEvent(CustomEventID id, ClosureId cId);
 
   static void initialize();
   static void deinitialize();
+
+ private:
+  std::unordered_map<CustomEventID, CustomEventSignal> customSignals;
 };
 }  // namespace rdm::network

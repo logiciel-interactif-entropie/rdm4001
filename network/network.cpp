@@ -360,6 +360,10 @@ void NetworkManager::service() {
                 try {
                   for (i = 0; i < numEntities; i++) {
                     EntityId id = stream.read<EntityId>();
+                    if (entities.find(id) == entities.end()) {
+                      Log::printf(LOG_DEBUG, "invalid entity %i", id);
+                      throw std::runtime_error("invalid entity id");
+                    }
                     ent = entities[id].get();
                     if (!ent) {
                       Log::printf(LOG_DEBUG, "%i == NULL", id);
@@ -534,7 +538,10 @@ void NetworkManager::service() {
                     throw std::runtime_error("customSignals[id].size() == 0");
                   }
 
-                  customSignals[id].fire(this, id, stream);
+                  customSignals[id].fire(stream);
+                } else {
+                  Log::printf(LOG_ERROR, "invalid customSignal id %04x", id);
+                  throw std::runtime_error("received invalid customSignal id");
                 }
               } break;
               case CvarPacket:
@@ -729,6 +736,20 @@ void NetworkManager::service() {
         // need not be cleared because std::vector will clean itself up
       }
 
+      if (int queuedEvents = peer.second.queuedEvents.size()) {
+        for (int i = 0; i < queuedEvents; i++) {
+          BitStream eventPacket;
+          eventPacket.write<PacketId>(EventPacket);
+          eventPacket.write<CustomEventID>(peer.second.queuedEvents[i].first);
+          eventPacket.writeStream(*peer.second.queuedEvents[i].second);
+          delete peer.second.queuedEvents[i].second;
+          ENetPacket* packet =
+              eventPacket.createPacket(ENET_PACKET_FLAG_RELIABLE);
+          enet_peer_send(peer.second.peer, NETWORK_STREAM_EVENT, packet);
+        }
+        peer.second.queuedEvents.clear();
+      }
+
       if (peer.second.noob && peer.second.playerEntity) {
         {
           std::vector<CVar*> cvars =
@@ -762,15 +783,6 @@ void NetworkManager::service() {
               newPeerPacket.createPacket(ENET_PACKET_FLAG_RELIABLE));
         }
         peer.second.noob = false;
-      }
-
-      if (int queuedEvents = peer.second.queuedEvents.size()) {
-        for (int i = 0; i < queuedEvents; i++) {
-          BitStream eventPacket;
-          eventPacket.write<PacketId>(EventPacket);
-          eventPacket.write<CustomEventID>(peer.second.queuedEvents[i].first);
-          eventPacket.writeStream(*peer.second.queuedEvents[i].second);
-        }
       }
     }
 
@@ -1075,6 +1087,18 @@ std::vector<Entity*> NetworkManager::findEntitiesByType(std::string typeName) {
   }
   return ret;
 }
+
+void NetworkManager::sendCustomEvent(CustomEventID id, BitStream& stream) {
+  if (isBackend()) {
+    for (auto& peer : peers) {
+      peer.second.queuedEvents.push_back({id, new BitStream(stream)});
+    }
+  } else {
+  }
+}
+
+void NetworkManager::sendCustomEvent(int peerId, CustomEventID id,
+                                     BitStream& stream) {}
 
 void NetworkManager::initialize() { enet_initialize(); }
 
