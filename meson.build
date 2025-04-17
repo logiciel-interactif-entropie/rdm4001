@@ -145,40 +145,17 @@ gamelib = static_library('game', [
 rdm4001_dep = declare_dependency(include_directories: inc,
 				 link_with: gamelib)
 
-inc2 = include_directories('wawaworld')
-
 executable('launcher', [
   'launcher.cpp'
-], include_directories: [inc, inc2], dependencies: [common_dep], link_with: gamelib)
+], include_directories: [inc], dependencies: [common_dep], link_with: gamelib)
 
 executable('raymarcher', [
   'raymarcher/main.cpp',
   'raymarcher/rgame.hpp',
   'raymarcher/rgame.cpp'
-], include_directories: [inc, inc2], dependencies: [common_dep, sdl2, glm], link_with: gamelib)
+], include_directories: [inc], dependencies: [common_dep, sdl2, glm], link_with: gamelib)
 
 b3geometry_dep = declare_dependency(link_args : ['-lBullet3Geometry', '-lBullet3Common'] ) 
-executable('wawaworld', [
-  'wawaworld/main.cpp',
-  'wawaworld/map.cpp',
-  'wawaworld/map.hpp',
-  'wawaworld/gstate.cpp',
-  'wawaworld/gstate.hpp',
-  'wawaworld/wgame.cpp',
-  'wawaworld/wgame.hpp',
-  'wawaworld/worldspawn.cpp',
-  'wawaworld/worldspawn.hpp',
-  'wawaworld/wplayer.cpp',
-  'wawaworld/wplayer.hpp',
-  'wawaworld/weapon.cpp',
-  'wawaworld/weapon.hpp',
-
-  'wawaworld/weapons/sniper.cpp',
-  'wawaworld/weapons/sniper.hpp',
-  'wawaworld/weapons/magnum.cpp',
-  'wawaworld/weapons/magnum.hpp',
-], cpp_args: options, include_directories: [inc, inc2], dependencies: [common_dep, sdl2, glm, b3geometry_dep, easy_profiler], link_with: gamelib)
-
 executable('roadtrip', [
   'roadtrip/main.cpp',
   'roadtrip/roadtrip.hpp',
@@ -187,4 +164,4 @@ executable('roadtrip', [
   'roadtrip/america.cpp',
   'roadtrip/pawn.hpp',
   'roadtrip/pawn.cpp',
-], cpp_args: options, include_directories: [inc, inc2], dependencies: [common_dep, sdl2, glm, b3geometry_dep, easy_profiler], link_with: gamelib)
+], cpp_args: options, include_directories: [inc], dependencies: [common_dep, sdl2, glm, b3geometry_dep, easy_profiler], link_with: gamelib)
