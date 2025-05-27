@@ -156,7 +156,10 @@ class Engine {
   BaseDevice* getDevice() { return device.get(); }
   MaterialCache* getMaterialCache() { return materialCache.get(); }
   TextureCache* getTextureCache() { return textureCache.get(); }
-  MeshCache* getMeshCache() { return meshCache.get(); }
+  [[deprecated("Use ResourceManager and the Model type")]]
+  MeshCache* getMeshCache() {
+    return meshCache.get();
+  }
   VideoRenderer* getVideoRenderer() { return videoRenderer.get(); }
   gui::GuiManager* getGuiManager() { return gui.get(); }
 

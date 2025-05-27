@@ -251,11 +251,13 @@ void FpsController::serialize(network::BitStream& stream) {
   btVector3FloatData vectorData;
   transform.getOrigin().serialize(vectorData);
   stream.write<btVector3FloatData>(vectorData);
+
   btMatrix3x3FloatData matrixData;
   transform.getBasis().serialize(matrixData);
   stream.write<btMatrix3x3FloatData>(matrixData);
   rigidBody->getLinearVelocity().serialize(vectorData);
   stream.write<btVector3FloatData>(vectorData);
+
   stream.write<float>(cameraYaw);
   stream.write<float>(cameraPitch);
 }

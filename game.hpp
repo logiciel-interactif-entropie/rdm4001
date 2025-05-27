@@ -5,6 +5,7 @@
 
 #include "console.hpp"
 #include "gfx/engine.hpp"
+#include "resource.hpp"
 #include "sound.hpp"
 #include "state.hpp"
 #include "world.hpp"
@@ -18,6 +19,7 @@ class Game {
   std::unique_ptr<gfx::Engine> gfxEngine;
   std::unique_ptr<SoundManager> soundManager;
   std::unique_ptr<GameState> gameState;
+  std::unique_ptr<ResourceManager> resourceManager;
 
  private:
   SDL_Window* window;
@@ -67,5 +69,7 @@ class Game {
   gfx::Engine* getGfxEngine() { return gfxEngine.get(); }
 
   GameState* getGameState() { return gameState.get(); }
+
+  ResourceManager* getResourceManager() { return resourceManager.get(); }
 };
 }  // namespace rdm

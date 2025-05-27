@@ -11,8 +11,12 @@
 #include "game.hpp"
 #include "glad/glad.h"
 #include "scheduler.hpp"
+#include "settings.hpp"
 
 namespace rdm {
+static CVar snd_master_gain("snd_master_gain", "0.25",
+                            CVARF_SAVE | CVARF_GLOBAL);
+
 SoundCache::SoundCache(SoundManager* manager) { this->manager = manager; }
 
 SoundEmitter::SoundEmitter(SoundManager* manager) {
@@ -22,6 +26,7 @@ SoundEmitter::SoundEmitter(SoundManager* manager) {
   playingSound = NULL;
   playing = false;
   setLooping(false);
+  setGain(1.f);
   setPitch(1.f);
   node = 0;
   for (int i = 0; i < 10; i++) streamBuffer[i] = 0;
@@ -71,7 +76,7 @@ void SoundEmitter::setPitch(float pitch) {
 }
 
 void SoundEmitter::setGain(float gain) {
-  alSourcef(source, AL_GAIN, gain);
+  alSourcef(source, AL_GAIN, gain * snd_master_gain.getFloat());
   this->gain = gain;
 }
 

@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <stdexcept>
 
 #include "SDL_clipboard.h"
@@ -18,6 +19,7 @@
 #include "input.hpp"
 #include "logging.hpp"
 #include "network/network.hpp"
+#include "resource.hpp"
 #include "scheduler.hpp"
 #include "script/script.hpp"
 #ifndef DISABLE_OBZ
@@ -53,6 +55,7 @@ Game::Game() {
 
   script::Script::initialize();
   network::NetworkManager::initialize();
+  resourceManager.reset(new ResourceManager());
 
   window = NULL;
   worldSettings.game = this;
@@ -215,14 +218,31 @@ class GameEventJob : public SchedulerJob {
   virtual double getFrameRate() { return 1.0 / input_rate.getFloat(); }
 };
 
+class ResourceManagerTickJob : public SchedulerJob {
+  Game* game;
+
+ public:
+  ResourceManagerTickJob(Game* game) : SchedulerJob("ResourceManagerTick") {
+    this->game = game;
+  }
+
+  virtual Result step() {
+    game->getResourceManager()->tick();
+    return Stepped;
+  }
+};
+
 void Game::earlyInit() {
   try {
     initialize();
+    bool createdTickJob = false;
 
     if (world) {
       initializeClient();
 
       world->getScheduler()->addJob(new GameEventJob(this));
+      world->getScheduler()->addJob(new ResourceManagerTickJob(this));
+      createdTickJob = true;
       world->getScheduler()->startAllJobs();
     }
     if (worldServer) {
@@ -232,6 +252,8 @@ void Game::earlyInit() {
           fprintf(stderr, "\033]0;%s\007", title.c_str());
         });
       }
+      if (!createdTickJob)
+        worldServer->getScheduler()->addJob(new ResourceManagerTickJob(this));
       worldServer->getScheduler()->startAllJobs();
     }
 

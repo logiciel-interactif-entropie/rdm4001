@@ -1,8 +1,10 @@
 #include "engine.hpp"
 
+#include <cstdio>
 #include <stdexcept>
 
 #include "filesystem.hpp"
+#include "game.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
 #include "gl_device.hpp"
@@ -157,6 +159,16 @@ class RenderJob : public SchedulerJob {
         engine->windowResolution = bufSize;
         engine->initializeBuffers(bufSize, true);
       }
+
+#ifndef DISABLE_EASY_PROFILER
+      EASY_BLOCK("Setup Frame");
+#endif
+
+      engine->getWorld()->getGame()->getResourceManager()->tickGfx(engine);
+
+#ifndef DISABLE_EASY_PROFILER
+      EASY_END_BLOCK;
+#endif
 
 #ifndef DISABLE_EASY_PROFILER
       EASY_BLOCK("Setup Frame");
