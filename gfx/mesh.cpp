@@ -41,7 +41,7 @@ void Model::render(BaseDevice* device) {
 }
 
 // https://learnopengl.com/code_viewer_gh.php?code=includes/learnopengl/assimp_glm_helpers.h
-static inline glm::mat4 ConvertMatrixToGLMFormat(const aiMatrix4x4& from) {
+glm::mat4 ConvertMatrixToGLMFormat(const aiMatrix4x4& from) {
   glm::mat4 to;
   // the a,b,c,d in assimp is the row ; the 1,2,3,4 is the column
   to[0][0] = from.a1;
@@ -94,11 +94,12 @@ Mesh Model::processMesh(aiMesh* mesh) {
                                 mesh->mNormals[i].z);
       vertex.uv =
           glm::vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
-      vertex.boneIds = glm::ivec4(-1);
-      vertex.boneWeights = glm::vec4(0.f);
+      // vertex.boneIds = glm::ivec4(-1);
+      // vertex.boneWeights = glm::vec4(0.f);
       vertices.push_back(vertex);
     }
 
+    /*
     // extract bone weights
     for (int i = 0; i < mesh->mNumBones; ++i) {
       int boneId = -1;
@@ -141,8 +142,8 @@ Mesh Model::processMesh(aiMesh* mesh) {
           default:
             break;  // do nothing
         }
-      }
-    }
+        }
+        }*/
 
     m.vertex->upload(BaseBuffer::Array, BaseBuffer::StaticDraw,
                      vertices.size() * sizeof(MeshVertexSkinned),

@@ -1,9 +1,13 @@
 #pragma once
+#include <assimp/scene.h>
+
+#include <glm/gtc/quaternion.hpp>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 
 #include "filesystem.hpp"
+#include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
 #include "gfx/mesh.hpp"
 namespace rdm {
@@ -26,6 +30,8 @@ class BaseResource {
     isDataReady = false;
     resourceManager = manager;
   }
+  virtual ~BaseResource() = default;
+
   std::string getName() { return name; }
 
   enum Type {
@@ -42,6 +48,8 @@ class BaseResource {
   void setNeedsData() { needsData = true; }
 
   void loadData();
+
+  ResourceManager* getResourceManager() { return resourceManager; };
 
   std::mutex m;
 };
@@ -62,9 +70,28 @@ class ResourceManager {
   }
 
   BaseResource* load(BaseResource::Type type, const char* resourceName);
+  template <typename T>
+  T* load(const char* resourceName) {
+    if (BaseResource* rsc = getResource(resourceName)) {
+      if (T* crsc = dynamic_cast<T*>(rsc)) {
+        return crsc;
+      } else {
+        return NULL;
+      }
+    }
+
+    if (auto io =
+            common::FileSystem::singleton()->getFileIO(resourceName, "r")) {
+      T* rsc = new T(this, resourceName);
+      resources[resourceName].reset(rsc);
+      return rsc;
+    } else
+      return NULL;
+  }
 
   void tick();
   void tickGfx(gfx::Engine* engine);
+  void imgui(gfx::Engine* engine);
 
   void deleteGfxResources();
 };
@@ -103,9 +130,23 @@ class Texture : public BaseGfxResource {
   gfx::BaseTexture* getTexture();
 };
 
+#define MODEL_MAX_BONE_TRANSFORMS 128
+
 class Model : public BaseGfxResource {
-  std::vector<gfx::Mesh> gfxMesh;
-  std::vector<resource::Texture*> textures;
+  Assimp::Importer importer;
+
+  const aiScene* scene;
+
+  std::map<std::string, gfx::Mesh> meshes;
+  std::map<std::string, gfx::BoneInfo> boneInfo;
+  glm::mat4 inverseGlobalTransform;
+
+  resource::Texture* albedo;
+  std::string path;
+
+  int boneCount;
+  bool broken;
+  bool skinned;
 
  public:
   Model(ResourceManager* rm, std::string name);
@@ -115,6 +156,73 @@ class Model : public BaseGfxResource {
 
   virtual void onLoadData(common::OptionalData data);
   virtual Type getType() { return BaseResource::Model; }
+
+  void render(gfx::BaseDevice* device);
+
+  struct KeyTranslate {
+    glm::vec3 position;
+    double timestamp;
+  };
+
+  struct KeyRotate {
+    glm::quat quat;
+    double timestamp;
+  };
+
+  struct KeyScale {
+    glm::vec3 scale;
+    double timestamp;
+  };
+
+  struct BoneKeyframe {
+    std::vector<KeyTranslate> translations;
+    std::vector<KeyRotate> rotations;
+    std::vector<KeyScale> scales;
+  };
+
+  struct Animation {
+    std::unordered_map<std::string, BoneKeyframe> boneKeys;
+
+    double tps;
+    double duration;
+  };
+
+  struct Animator {
+    Animation* animation;
+    double currentTime;
+    double speed;
+    glm::mat4 boneMatrices[MODEL_MAX_BONE_TRANSFORMS];
+
+    Animator() {
+      animation = NULL;
+      speed = 1.f;
+      currentTime = 0.f;
+      for (int i = 0; i < MODEL_MAX_BONE_TRANSFORMS; i++)
+        boneMatrices[i] = glm::mat4(1.f);
+    }
+
+    void upload(gfx::BaseProgram* program);
+  };
+
+  void updateAnimator(gfx::Engine* engine, Animator* anim);
+  glm::mat4 getBoneTransform(std::string name, Animator* anim);
+  Animation* getAnimation(std::string name);
+
+ private:
+  std::map<std::string, Animation> animations;
+
+  void calcAnimatorTransforms(aiNode* node, Animator* anim,
+                              glm::mat4 transform);
+
+  int positionIdx(BoneKeyframe k, float t) const;
+  int rotationIdx(BoneKeyframe k, float t) const;
+  int scaleIdx(BoneKeyframe k, float t) const;
+
+  glm::mat4 interpPosition(BoneKeyframe k, float t) const;
+  glm::mat4 interpRotation(BoneKeyframe k, float t) const;
+  glm::mat4 interpScale(BoneKeyframe k, float t) const;
+
+  glm::mat4 boneTransform(BoneKeyframe k, float t) const;
 };
 
 };  // namespace resource

@@ -19,10 +19,18 @@ struct MeshVertex {
   glm::vec2 uv;
 };
 
-struct MeshVertexSkinned : public MeshVertex {
-  glm::ivec4 boneIds;
-  glm::vec4 boneWeights;
+#define MODEL_MAX_WEIGHTS 4
+
+struct MeshVertexSkinned {
+  glm::vec3 position;
+  glm::vec3 normal;
+  glm::vec2 uv;
+  int boneIds[MODEL_MAX_WEIGHTS];
+  float boneWeights[MODEL_MAX_WEIGHTS];
 };
+
+// https://learnopengl.com/code_viewer_gh.php?code=includes/learnopengl/assimp_glm_helpers.h
+glm::mat4 ConvertMatrixToGLMFormat(const aiMatrix4x4& from);
 
 struct BoneInfo {
   int id;

@@ -8,6 +8,7 @@
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
 #include "gl_device.hpp"
+#include "imgui/imgui.h"
 #include "logging.hpp"
 #include "scheduler.hpp"
 #include "settings.hpp"
@@ -478,6 +479,8 @@ void Engine::render() {
 
   imguiLock.lock();
   device->startImGui();
+
+  // getWorld()->getGame()->getResourceManager()->imgui(this);
 
   renderStepped.fire();
   for (int i = 0; i < entities.size(); i++) {

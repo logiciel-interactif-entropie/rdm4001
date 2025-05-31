@@ -421,9 +421,16 @@ void GLArrayPointers::upload() {
       attrib.buffer->bind();
     }
     glEnableVertexAttribArray(attrib.layoutId);
-    glVertexAttribPointer(attrib.layoutId, attrib.size,
-                          fromDataType(attrib.type), attrib.normalized,
-                          attrib.stride, attrib.offset);
+
+    // HACKHACKHACK: HACK
+    if (attrib.type == DtInt || attrib.type == DtUnsignedInt)
+      glVertexAttribIPointer(attrib.layoutId, attrib.size,
+                             fromDataType(attrib.type), attrib.stride,
+                             attrib.offset);
+    else
+      glVertexAttribPointer(attrib.layoutId, attrib.size,
+                            fromDataType(attrib.type), attrib.normalized,
+                            attrib.stride, attrib.offset);
   }
   glBindVertexArray(0);
 }

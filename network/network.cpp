@@ -962,7 +962,7 @@ static CVar net_outbandwidth("net_outbandwidth", "0",
 
 void NetworkManager::start(int port) {
   if (host) {
-    Log::printf(LOG_WARN, "host = %p", host);
+    Log::printf(LOG_WARN, "Already hosting server, deleting old host");
     enet_host_destroy(host);
   }
   ENetAddress address;

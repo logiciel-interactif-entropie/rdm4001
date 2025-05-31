@@ -11,6 +11,7 @@
 #include "gfx/gui/gui.hpp"
 #include "input.hpp"
 #include "logging.hpp"
+#include "resource.hpp"
 #include "settings.hpp"
 namespace rdm {
 struct ConCommandInfo {
@@ -53,6 +54,8 @@ Console::Console(Game* game) {
     });
     game->getWorld()->stepped.listen([this] { tick(); });
 
+    bgTexture = game->getResourceManager()->load<resource::Texture>(
+        "dat3/console_bg.png");
     textTexture = game->getGfxEngine()->getDevice()->createTexture();
 #ifdef NDEBUG
     visible = false;
@@ -132,12 +135,8 @@ void Console::render() {
       gfx::BaseProgram::Parameter{.vec2 = glm::vec2(tres.x, tres.y / 2)});
   bp->setParameter(
       "texture0", gfx::DtSampler,
-      gfx::BaseProgram::Parameter{
-          .texture.slot = 0,
-          .texture.texture = engine->getTextureCache()
-                                 ->getOrLoad2d("dat3/console_bg.png")
-                                 .value()
-                                 .second});
+      gfx::BaseProgram::Parameter{.texture.slot = 0,
+                                  .texture.texture = bgTexture->getTexture()});
   bp->setParameter("color", gfx::DtVec3,
                    gfx::BaseProgram::Parameter{.vec3 = glm::vec3(1, 1, 1)});
   bp->setParameter(
@@ -334,9 +333,6 @@ static ConsoleCommand host(
           game->getServerWorld()->getNetworkManager()->start(port);
         } catch (std::exception& e) {
           Log::printf(LOG_ERROR, "Error starting server %s", e.what());
-
-          game->getServerWorld()->setRunning(false);
-          game->getWorld()->setRunning(false);
         }
         game->getWorld()->getNetworkManager()->connect("127.0.0.1", port);
       } else {

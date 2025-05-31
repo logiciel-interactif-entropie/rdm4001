@@ -5,6 +5,7 @@
 
 #include "gfx/base_types.hpp"
 #include "gfx/gui/gui.hpp"
+#include "resource.hpp"
 
 namespace rdm {
 class Game;
@@ -23,6 +24,8 @@ class Console {
   bool inputCommand;
   bool visible;
   std::string lastText;
+
+  resource::Texture* bgTexture;
 
   Game* game;
 
