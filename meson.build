@@ -67,6 +67,8 @@ gamelib = static_library('game', [
   'physics.cpp',
   'physics.hpp',
   'resource.cpp',
+  'resource_model.cpp',
+  'resource_texture.cpp',
   'resource.hpp',
   'fun.cpp',
   'fun.hpp',

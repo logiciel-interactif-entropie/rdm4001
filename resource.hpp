@@ -18,6 +18,9 @@ class Engine;
 };
 
 class ResourceManager;
+namespace resource {
+class Texture;
+}
 
 class BaseResource {
   std::string name;
@@ -62,9 +65,11 @@ typedef std::string ResourceId;
 
 class ResourceManager {
   std::unordered_map<ResourceId, std::unique_ptr<BaseResource>> resources;
+  resource::Texture* missingTexture;
 
  public:
   ResourceManager();
+  resource::Texture* getMissingTexture() { return missingTexture; };
 
   BaseResource* getResource(ResourceId id) {
     if (resources.find(id) != resources.end())
