@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 
+#include "resource.hpp"
 #include "sound.hpp"
 namespace rdm {
 class Game;
@@ -8,6 +9,7 @@ class Game;
 class GameState {
   Game* game;
   float timer;
+  resource::Model* entropyLogo;
   rdm::SoundEmitter* emitter;
 
  public:

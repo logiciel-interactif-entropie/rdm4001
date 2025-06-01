@@ -144,6 +144,11 @@ class NetworkManager {
 
   void deleteEntity(EntityId id);
   Entity* instantiate(std::string typeName, int id = -1);
+  template <typename T>
+  void registerConstructor(std::string typeName) {
+    T::precache(this);
+    registerConstructor(EntityConstructor<T>, typeName);
+  }
   void registerConstructor(EntityConstructorFunction func,
                            std::string typeName);
   Entity* findEntityByType(std::string typeName);

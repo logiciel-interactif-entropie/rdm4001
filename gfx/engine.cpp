@@ -472,6 +472,8 @@ void Engine::initializeBuffers(glm::vec2 res, bool reset) {
 
 void Engine::stepped() {}
 
+static CVar r_resource_menu("r_resource_menu", "0");
+
 void Engine::render() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
@@ -480,7 +482,8 @@ void Engine::render() {
   imguiLock.lock();
   device->startImGui();
 
-  // getWorld()->getGame()->getResourceManager()->imgui(this);
+  if (r_resource_menu.getBool())
+    getWorld()->getGame()->getResourceManager()->imgui(this);
 
   renderStepped.fire();
   for (int i = 0; i < entities.size(); i++) {

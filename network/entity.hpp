@@ -9,6 +9,7 @@
 namespace rdm {
 class World;
 class Game;
+class ResourceManager;
 
 namespace gfx {
 class Engine;
@@ -82,7 +83,7 @@ class Entity {
 
   EntityId getEntityId() { return id; }
 
-  static void precache();
+  static void precache(NetworkManager* manager);
 
   virtual void tick() {};
 

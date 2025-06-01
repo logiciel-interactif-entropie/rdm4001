@@ -1,6 +1,7 @@
 #pragma once
 #include <assimp/scene.h>
 
+#include <functional>
 #include <glm/gtc/quaternion.hpp>
 #include <memory>
 #include <mutex>
@@ -9,6 +10,7 @@
 #include "filesystem.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
+#include "gfx/material.hpp"
 #include "gfx/mesh.hpp"
 namespace rdm {
 namespace gfx {
@@ -50,6 +52,8 @@ class BaseResource {
   void loadData();
 
   ResourceManager* getResourceManager() { return resourceManager; };
+
+  virtual void imguiDebug() {};
 
   std::mutex m;
 };
@@ -137,11 +141,17 @@ class Model : public BaseGfxResource {
 
   const aiScene* scene;
 
+  struct Material {
+    resource::Texture* diffuse;
+  };
+
   std::map<std::string, gfx::Mesh> meshes;
   std::map<std::string, gfx::BoneInfo> boneInfo;
+  std::shared_ptr<gfx::Material> gfx_material;
+  std::map<std::string, Material> materials;
+
   glm::mat4 inverseGlobalTransform;
 
-  resource::Texture* albedo;
   std::string path;
 
   int boneCount;
@@ -156,8 +166,6 @@ class Model : public BaseGfxResource {
 
   virtual void onLoadData(common::OptionalData data);
   virtual Type getType() { return BaseResource::Model; }
-
-  void render(gfx::BaseDevice* device);
 
   struct KeyTranslate {
     glm::vec3 position;
@@ -204,9 +212,16 @@ class Model : public BaseGfxResource {
     void upload(gfx::BaseProgram* program);
   };
 
+  void render(
+      gfx::BaseDevice* device, Animator* animator = NULL,
+      gfx::Material* material = NULL,
+      std::optional<std::function<void(gfx::BaseProgram*)>> setParameters = {});
+
   void updateAnimator(gfx::Engine* engine, Animator* anim);
   glm::mat4 getBoneTransform(std::string name, Animator* anim);
   Animation* getAnimation(std::string name);
+
+  virtual void imguiDebug();
 
  private:
   std::map<std::string, Animation> animations;

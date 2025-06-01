@@ -125,10 +125,11 @@ void ResourceManager::imgui(gfx::Engine* engine) {
                 dynamic_cast<resource::Texture*>(resource.get())) {
           ImGui::Image(texture->getTexture()->getImTextureId(),
                        ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
-        } else if (resource::Model* model =
-                       dynamic_cast<resource::Model*>(resource.get())) {
         }
       }
+
+      resource->imguiDebug();
+
       ImGui::EndTabItem();
     }
     ImGui::PopID();
@@ -246,15 +247,22 @@ class AssimpIOStream : public Assimp::IOStream {
 };
 
 class AssimpIOSystem : public Assimp::IOSystem {
+  std::string basePath;
+
  public:
+  AssimpIOSystem(std::string basePath) { this->basePath = basePath; }
+
   virtual bool Exists(const char* file) const {
-    return common::FileSystem::singleton()->getFileIO(file, "r").has_value();
+    return common::FileSystem::singleton()
+        ->getFileIO((basePath + file).c_str(), "r")
+        .has_value();
   }
 
   virtual char getOsSeparator() const { return '/'; }
 
   virtual Assimp::IOStream* Open(const char* file, const char* mode) {
-    auto io = common::FileSystem::singleton()->getFileIO(file, mode);
+    auto io = common::FileSystem::singleton()->getFileIO(
+        (basePath + file).c_str(), mode);
     if (io) {
       return new AssimpIOStream(io.value());
     } else
@@ -279,6 +287,8 @@ void Model::gfxUpload(gfx::Engine* engine) {
     meshData.element = engine->getDevice()->createBuffer();
     meshData.vertex = engine->getDevice()->createBuffer();
     meshData.arrayPointers = engine->getDevice()->createArrayPointers();
+    meshData.material =
+        scene->mMaterials[mesh->mMaterialIndex]->GetName().C_Str();
 
     for (int i = 0; i < mesh->mNumFaces; i++) {
       aiFace face = mesh->mFaces[i];
@@ -328,20 +338,12 @@ void Model::gfxUpload(gfx::Engine* engine) {
           aiVertexWeight weight = bone->mWeights[j];
           int vertex = weight.mVertexId;
           float value = weight.mWeight;
-          bool modifiedVertex = false;
           for (int z = 0; z < MODEL_MAX_WEIGHTS; z++) {
             if (vertices[vertex].boneIds[z] < 0) {
               vertices[vertex].boneIds[z] = boneId;
               vertices[vertex].boneWeights[z] = value;
-              modifiedVertex = true;
               break;
             }
-          }
-          if (!modifiedVertex) {
-            Log::printf(LOG_ERROR,
-                        "Bone %s tried to add another weight to %i, which is "
-                        "at its limit",
-                        bone->mName.C_Str(), vertex);
           }
         }
       }
@@ -398,6 +400,10 @@ void Model::gfxUpload(gfx::Engine* engine) {
     meshes[mesh->mName.C_Str()] = std::move(meshData);
   }
 
+  gfx_material = engine->getMaterialCache()
+                     ->getOrLoad(skinned ? "MeshSkinned" : "Mesh")
+                     .value();
+
   setReady();
 }
 
@@ -407,7 +413,10 @@ void Model::onLoadData(common::OptionalData data) {
   broken = false;
   if (path.extension() == "cqc") {
   } else {
-    importer.SetIOHandler(new AssimpIOSystem());
+    std::string dir = getName().substr(0, getName().find_last_of('/') + 1);
+    Log::printf(LOG_DEBUG, "Mesh basedir %s", dir.c_str());
+    AssimpIOSystem* system = new AssimpIOSystem(dir);
+    importer.SetIOHandler(system);
     scene = importer.ReadFileFromMemory(
         data->data(), data->size(), aiProcess_Triangulate | aiProcess_FlipUVs,
         path.extension().c_str());
@@ -420,14 +429,28 @@ void Model::onLoadData(common::OptionalData data) {
     }
     inverseGlobalTransform = glm::inverse(
         gfx::ConvertMatrixToGLMFormat(scene->mRootNode->mTransformation));
+    Log::printf(LOG_DEBUG, "Num materials: %i", scene->mNumMaterials);
     for (int i = 0; i < scene->mNumMaterials; i++) {
       aiMaterial* material = scene->mMaterials[i];
-      aiString texturePath;
+      Material& matData = materials[material->GetName().C_Str()];
 
-      if (material->GetTextureCount(aiTextureType_BASE_COLOR)) {
-        material->GetTexture(aiTextureType_BASE_COLOR, 0, &texturePath);
-        albedo =
-            getResourceManager()->load<resource::Texture>(texturePath.C_Str());
+      Log::printf(LOG_DEBUG, "Material %s (PBR)", material->GetName().C_Str());
+
+      if (material->GetTextureCount(aiTextureType_DIFFUSE)) {
+        std::string texturePath;
+        {
+          aiString aiTexturePath;
+          material->GetTexture(aiTextureType_DIFFUSE, 0, &aiTexturePath);
+          texturePath = dir + aiTexturePath.C_Str();
+        }
+
+        matData.diffuse =
+            getResourceManager()->load<resource::Texture>(texturePath.c_str());
+        if (!matData.diffuse)
+          Log::printf(LOG_ERROR,
+                      "Could not load diffuse texture %s for material %s",
+                      texturePath.c_str(), material->GetName().C_Str());
+        Log::printf(LOG_DEBUG, "Diffuse texture: %s", texturePath.c_str());
       }
     }
     for (int i = 0; i < scene->mNumMeshes; i++) {
@@ -506,11 +529,30 @@ void Model::onLoadData(common::OptionalData data) {
   }
 }
 
-void Model::render(gfx::BaseDevice* device) {
+void Model::render(
+    gfx::BaseDevice* device, Animator* animator, gfx::Material* material,
+    std::optional<std::function<void(gfx::BaseProgram*)>> setParameters) {
   if (!getReady()) return;
   {
     std::scoped_lock l(m);
-    for (auto& [name, mesh] : meshes) mesh.render(device);
+
+    gfx::Material* usedMaterial = material ? material : gfx_material.get();
+    gfx::BaseProgram* bp = usedMaterial->prepareDevice(device, 0);
+    if (skinned && animator) animator->upload(bp);
+    if (setParameters) setParameters.value()(bp);
+
+    for (auto& [name, mesh] : meshes) {
+      Material& mat = materials[mesh.material];
+      bp->setParameter(
+          "diffuse", gfx::DtSampler,
+          {
+              .texture.texture = mat.diffuse ? mat.diffuse->getTexture() : NULL,
+              .texture.slot = 0,
+          });
+
+      bp->bind();
+      mesh.render(device);
+    }
   }
 }
 
@@ -521,6 +563,17 @@ void Model::updateAnimator(gfx::Engine* engine, Animator* anim) {
                        anim->speed;
   anim->currentTime = fmod(anim->currentTime, anim->animation->duration);
   calcAnimatorTransforms(scene->mRootNode, anim, glm::mat4(1));
+}
+
+void Model::imguiDebug() {
+  for (auto [name, animation] : animations) {
+    if (ImGui::TreeNode(name.c_str())) {
+      ImGui::Text("Duration: %f", animation.duration);
+      ImGui::Text("Ticks/Second: %f", animation.tps);
+
+      ImGui::TreePop();
+    }
+  }
 }
 
 static CVar r_anim("r_anim", "1");

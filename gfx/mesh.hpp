@@ -47,6 +47,8 @@ struct Mesh {
   std::unique_ptr<BaseBuffer> element;
   std::unique_ptr<BaseArrayPointers> arrayPointers;
 
+  std::string material;
+
   void render(BaseDevice* device);
 };
 

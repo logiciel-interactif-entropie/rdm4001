@@ -95,6 +95,8 @@ GameState::GameState(Game* game) {
   state = cl_nointro.getBool() ? MainMenu : Intro;
   timer = 10.f;
   emitter = game->getSoundManager()->newEmitter();
+  entropyLogo =
+      game->getResourceManager()->load<resource::Model>("dat0/entropy.obj");
 
   game->getWorld()->getScriptContext()->setContextCall.listen(
       [](mb_interpreter_t* s) {
@@ -189,8 +191,6 @@ GameState::GameState(Game* game) {
         Graph::Node node;
         node.basis = glm::identity<glm::mat3>();
         node.origin = glm::vec3(0);
-        std::shared_ptr<gfx::Material> material =
-            game->getGfxEngine()->getMaterialCache()->getOrLoad("Mesh").value();
         gfx::Camera& camera = game->getGfxEngine()->getCamera();
         float time = game->getGfxEngine()->getTime();
         game->getGfxEngine()->setClearColor(glm::vec3(0.0, 0.0, 0.0));
@@ -210,16 +210,13 @@ GameState::GameState(Game* game) {
         camera.setFOV(30.f + (time * 4.f));
         float distance = 4.0 + time;
         camera.setPosition(glm::vec3(0.0, 0.0, distance));
-        gfx::BaseProgram* program =
-            material->prepareDevice(game->getGfxEngine()->getDevice(), 0);
-        program->setParameter(
-            "model", gfx::DtMat4,
-            gfx::BaseProgram::Parameter{.matrix4x4 = node.worldTransform()});
-        gfx::Model* model = game->getGfxEngine()
-                                ->getMeshCache()
-                                ->get("dat0/entropy.obj")
-                                .value();
-        model->render(game->getGfxEngine()->getDevice());
+        entropyLogo->render(game->getGfxEngine()->getDevice(), NULL, NULL,
+                            [&node](gfx::BaseProgram* program) {
+                              program->setParameter(
+                                  "model", gfx::DtMat4,
+                                  gfx::BaseProgram::Parameter{
+                                      .matrix4x4 = node.worldTransform()});
+                            });
       } break;
     }
   });

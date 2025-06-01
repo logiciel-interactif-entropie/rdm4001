@@ -30,6 +30,8 @@ Entity::Entity(NetworkManager* manager, EntityId id) {
   this->manager = manager;
 }
 
+void Entity::precache(NetworkManager* manager) {}
+
 std::string Entity::getEntityInfo() { return ""; }
 
 Entity::~Entity() {}
