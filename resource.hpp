@@ -10,8 +10,10 @@
 #include "filesystem.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
+#include "gfx/engine.hpp"
 #include "gfx/material.hpp"
 #include "gfx/mesh.hpp"
+#include "gfx/viewport.hpp"
 namespace rdm {
 namespace gfx {
 class Engine;
@@ -66,6 +68,7 @@ typedef std::string ResourceId;
 class ResourceManager {
   std::unordered_map<ResourceId, std::unique_ptr<BaseResource>> resources;
   resource::Texture* missingTexture;
+  gfx::Viewport* previewViewport;
 
  public:
   ResourceManager();
@@ -129,6 +132,8 @@ class Texture : public BaseGfxResource {
 
  public:
   Texture(ResourceManager* rm, std::string name);
+
+  gfx::TextureCache::Info getInfo();
 
   virtual void gfxDelete();
   virtual void gfxUpload(gfx::Engine* engine);
@@ -200,13 +205,25 @@ class Model : public BaseGfxResource {
     double duration;
   };
 
+  struct BoundingBox {
+    glm::vec3 min;
+    glm::vec3 max;
+  };
+
+ private:  // UGLYUGLYUGLYUGLY
+  Animation* preferedAnimation;
+  BoundingBox boundingBox;
+
+ public:
   struct Animator {
     Animation* animation;
     double currentTime;
     double speed;
     glm::mat4 boneMatrices[MODEL_MAX_BONE_TRANSFORMS];
 
-    Animator() {
+    Animator() { reset(); }
+
+    void reset() {
       animation = NULL;
       speed = 1.f;
       currentTime = 0.f;
@@ -225,8 +242,10 @@ class Model : public BaseGfxResource {
   void updateAnimator(gfx::Engine* engine, Animator* anim);
   glm::mat4 getBoneTransform(std::string name, Animator* anim);
   Animation* getAnimation(std::string name);
+  Animation* getAnimation() { return preferedAnimation; }
 
   virtual void imguiDebug();
+  BoundingBox getBoundingBox() { return boundingBox; }
 
  private:
   std::map<std::string, Animation> animations;

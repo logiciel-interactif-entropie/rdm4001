@@ -97,7 +97,33 @@ void GLTexture::reserve2d(int width, int height, InternalFormat format,
   } else {
     GLenum target = texType(textureType);
     glBindTexture(target, texture);
-    glTexStorage2D(target, 0, texInternalFormat(textureFormat), width, height);
+
+    GLenum _format, type;
+    switch (format) {
+      default:
+        throw std::runtime_error("");
+      case RGB8:
+        _format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+        break;
+      case RGBA8:
+        _format = GL_RGBA;
+        type = GL_UNSIGNED_BYTE;
+        break;
+      case RGBF32:
+        _format = GL_RGB;
+        type = GL_FLOAT;
+        break;
+      case RGBAF32:
+        _format = GL_RGBA;
+        type = GL_FLOAT;
+        break;
+    }
+
+    glTexImage2D(target, 0, texInternalFormat(format), width, height, 0,
+                 _format, type, NULL);
+    glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     if (mipmapLevels != 0) {
       glGenerateMipmap(target);
     }

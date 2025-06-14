@@ -1,6 +1,6 @@
+#include "launcher.hpp"
 #include "raymarcher/rgame.hpp"
 #include "settings.hpp"
-#include "launcher.hpp"
 
 int main(int argc, char** argv) {
   rdm::Settings::singleton()->parseCommandLine(argv, argc);
@@ -10,4 +10,4 @@ int main(int argc, char** argv) {
 }
 
 LAUNCHER_DEFINE_EXPORTS(rm::RGame, "RayMarcher",
-			"RayMarcher (c) entropy interactive 2024");
+                        "RayMarcher (c) logiciel interactif entropie 2024");

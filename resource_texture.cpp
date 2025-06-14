@@ -1,3 +1,4 @@
+#include "gfx/base_types.hpp"
 #include "gfx/engine.hpp"
 #include "gfx/stb_image.h"
 #include "resource.hpp"
@@ -28,6 +29,25 @@ void Texture::gfxUpload(gfx::Engine* engine) {
   texture = engine->getDevice()->createTexture();
   texture->upload2d(width, height, gfx::DtUnsignedByte, fmt, textureData, 4);
   setReady();
+}
+
+gfx::TextureCache::Info Texture::getInfo() {
+  gfx::TextureCache::Info info;
+  info.channels = channels;
+  info.width = width;
+  info.height = height;
+  info.data = NULL;
+  switch (info.channels) {
+    case 3:
+      info.format = gfx::BaseTexture::RGB;
+      break;
+    case 4:
+      info.format = gfx::BaseTexture::RGBA;
+      break;
+    default:
+      break;
+  }
+  return info;
 }
 
 void Texture::onLoadData(common::OptionalData data) {

@@ -20,6 +20,8 @@ Model::Model(ResourceManager* rm, std::string name)
   path = std::string(name).find_last_of('/');
   broken = true;
   boneCount = 0;
+  boundingBox.max = glm::vec3(0.0);
+  boundingBox.min = glm::vec3(0.0);
 }
 
 void Model::gfxDelete() {}
@@ -120,7 +122,7 @@ void Model::gfxUpload(gfx::Engine* engine) {
         vertex.normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y,
                                   mesh->mNormals[i].z);
         vertex.uv = glm::vec2(mesh->mTextureCoords[0][i].x,
-                              mesh->mTextureCoords[0][i].y);
+                              1.0 - mesh->mTextureCoords[0][i].y);
         vertex.boneIds[0] = -1;
         vertex.boneIds[1] = -1;
         vertex.boneIds[2] = -1;
@@ -188,7 +190,7 @@ void Model::gfxUpload(gfx::Engine* engine) {
         vertex.normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y,
                                   mesh->mNormals[i].z);
         vertex.uv = glm::vec2(mesh->mTextureCoords[0][i].x,
-                              mesh->mTextureCoords[0][i].y);
+                              1.0 - mesh->mTextureCoords[0][i].y);
         vertices.push_back(vertex);
       }
       meshData.vertex->upload(
@@ -223,7 +225,6 @@ void Model::onLoadData(common::OptionalData data) {
   if (path.extension() == "cqc") {
   } else {
     std::string dir = getName().substr(0, getName().find_last_of('/') + 1);
-    Log::printf(LOG_DEBUG, "Mesh basedir %s", dir.c_str());
     AssimpIOSystem* system = new AssimpIOSystem(dir);
     importer.SetIOHandler(system);
     scene = importer.ReadFileFromMemory(
@@ -238,12 +239,9 @@ void Model::onLoadData(common::OptionalData data) {
     }
     inverseGlobalTransform = glm::inverse(
         gfx::ConvertMatrixToGLMFormat(scene->mRootNode->mTransformation));
-    Log::printf(LOG_DEBUG, "Num materials: %i", scene->mNumMaterials);
     for (int i = 0; i < scene->mNumMaterials; i++) {
       aiMaterial* material = scene->mMaterials[i];
       Material& matData = materials[material->GetName().C_Str()];
-
-      Log::printf(LOG_DEBUG, "Material %s (PBR)", material->GetName().C_Str());
 
       if (material->GetTextureCount(aiTextureType_DIFFUSE)) {
         std::string texturePath;
@@ -259,21 +257,27 @@ void Model::onLoadData(common::OptionalData data) {
           Log::printf(LOG_ERROR,
                       "Could not load diffuse texture %s for material %s",
                       texturePath.c_str(), material->GetName().C_Str());
-        Log::printf(LOG_DEBUG, "Diffuse texture: %s", texturePath.c_str());
       }
     }
     for (int i = 0; i < scene->mNumMeshes; i++) {
       aiMesh* mesh = scene->mMeshes[i];
       std::string meshName = mesh->mName.C_Str();
 
+      for (int i = 0; i < mesh->mNumVertices; i++) {
+        glm::vec3 position = glm::vec3(
+            mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
+        boundingBox.max = glm::max(boundingBox.max, position);
+        boundingBox.min = glm::min(boundingBox.min, position);
+      }
+
       if (mesh->HasBones()) {
         skinned = true;
 
-        Log::printf(LOG_DEBUG, "HI we aare going to load %i Bones",
-                    mesh->mNumBones);
         for (int j = 0; j < mesh->mNumBones; j++) {
           aiBone* bone = mesh->mBones[j];
           std::string boneName = bone->mName.C_Str();
+          if (boneInfo.find(boneName) != boneInfo.end()) continue;
+
           gfx::BoneInfo boneData;
           boneData.id = boneCount++;
           boneData.offset = gfx::ConvertMatrixToGLMFormat(bone->mOffsetMatrix);
@@ -282,58 +286,58 @@ void Model::onLoadData(common::OptionalData data) {
         }
       }
     }
-    if (skinned) {
-      for (int i = 0; i < scene->mNumAnimations; i++) {
-        aiAnimation* anim = scene->mAnimations[i];
-        Animation animData;
+    for (int i = 0; i < scene->mNumAnimations; i++) {
+      aiAnimation* anim = scene->mAnimations[i];
+      Animation animData;
 
-        Log::printf(LOG_DEBUG, "Animation %s", anim->mName.C_Str());
-        animData.tps = anim->mTicksPerSecond;
-        animData.duration = anim->mDuration;
-        for (int j = 0; j < anim->mNumChannels; j++) {
-          aiNodeAnim* nodeAnim = anim->mChannels[j];
+      animData.tps = anim->mTicksPerSecond;
+      animData.duration = anim->mDuration;
+      for (int j = 0; j < anim->mNumChannels; j++) {
+        aiNodeAnim* nodeAnim = anim->mChannels[j];
 
-          if (boneInfo.find(nodeAnim->mNodeName.C_Str()) == boneInfo.end()) {
-            gfx::BoneInfo& info = boneInfo[nodeAnim->mNodeName.C_Str()];
-            info.id = boneCount++;
-            info.offset = glm::identity<glm::mat4>();
-            Log::printf(LOG_WARN, "Anim %s adds missing bone %s",
-                        nodeAnim->mNodeName.C_Str());
-          }
-
-          BoneKeyframe& chan_keys =
-              animData.boneKeys[nodeAnim->mNodeName.C_Str()];
-          chan_keys.translations.reserve(nodeAnim->mNumPositionKeys);
-          chan_keys.rotations.reserve(nodeAnim->mNumRotationKeys);
-          chan_keys.scales.reserve(nodeAnim->mNumScalingKeys);
-
-          for (int j = 0; j < nodeAnim->mNumPositionKeys; j++) {
-            KeyTranslate k;
-            aiVector3D p = nodeAnim->mPositionKeys[j].mValue;
-            k.position = glm::vec3(p.x, p.y, p.z);
-            k.timestamp = nodeAnim->mPositionKeys[j].mTime;
-            chan_keys.translations.push_back(k);
-          }
-
-          for (int j = 0; j < nodeAnim->mNumScalingKeys; j++) {
-            KeyScale k;
-            aiVector3D p = nodeAnim->mScalingKeys[j].mValue;
-            k.scale = glm::vec3(p.x, p.y, p.z);
-            k.timestamp = nodeAnim->mScalingKeys[j].mTime;
-            chan_keys.scales.push_back(k);
-          }
-
-          for (int j = 0; j < nodeAnim->mNumRotationKeys; j++) {
-            KeyRotate k;
-            aiQuaternion p = nodeAnim->mRotationKeys[j].mValue;
-            k.quat = glm::quat(p.w, p.x, p.y, p.z);
-            k.timestamp = nodeAnim->mRotationKeys[j].mTime;
-            chan_keys.rotations.push_back(k);
-          }
+        if (skinned &&
+            boneInfo.find(nodeAnim->mNodeName.C_Str()) == boneInfo.end()) {
+          gfx::BoneInfo& info = boneInfo[nodeAnim->mNodeName.C_Str()];
+          info.id = boneCount++;
+          info.offset = glm::identity<glm::mat4>();
+          Log::printf(LOG_WARN, "Anim %s adds missing bone %s",
+                      nodeAnim->mNodeName.C_Str());
         }
 
-        animations[anim->mName.C_Str()] = animData;
+        BoneKeyframe& chan_keys =
+            animData.boneKeys[nodeAnim->mNodeName.C_Str()];
+        chan_keys.translations.reserve(nodeAnim->mNumPositionKeys);
+        chan_keys.rotations.reserve(nodeAnim->mNumRotationKeys);
+        chan_keys.scales.reserve(nodeAnim->mNumScalingKeys);
+
+        for (int j = 0; j < nodeAnim->mNumPositionKeys; j++) {
+          KeyTranslate k;
+          aiVector3D p = nodeAnim->mPositionKeys[j].mValue;
+          k.position = glm::vec3(p.x, p.y, p.z);
+          k.timestamp = nodeAnim->mPositionKeys[j].mTime;
+          chan_keys.translations.push_back(k);
+        }
+
+        for (int j = 0; j < nodeAnim->mNumScalingKeys; j++) {
+          KeyScale k;
+          aiVector3D p = nodeAnim->mScalingKeys[j].mValue;
+          k.scale = glm::vec3(p.x, p.y, p.z);
+          k.timestamp = nodeAnim->mScalingKeys[j].mTime;
+          chan_keys.scales.push_back(k);
+        }
+
+        for (int j = 0; j < nodeAnim->mNumRotationKeys; j++) {
+          KeyRotate k;
+          aiQuaternion p = nodeAnim->mRotationKeys[j].mValue;
+          k.quat = glm::quat(p.w, p.x, p.y, p.z);
+          k.timestamp = nodeAnim->mRotationKeys[j].mTime;
+          chan_keys.rotations.push_back(k);
+        }
       }
+
+      animations[anim->mName.C_Str()] = animData;
+      if (!preferedAnimation)
+        preferedAnimation = &animations[anim->mName.C_Str()];
     }
   }
 }
@@ -342,6 +346,8 @@ void Model::render(
     gfx::BaseDevice* device, Animator* animator, gfx::Material* material,
     std::optional<std::function<void(gfx::BaseProgram*)>> setParameters) {
   if (!getReady()) return;
+  if (meshes.size() == 0)
+    throw std::runtime_error("There are no meshes in this model");
   {
     std::scoped_lock l(m);
 
@@ -366,6 +372,8 @@ void Model::render(
 }
 
 void Model::updateAnimator(gfx::Engine* engine, Animator* anim) {
+  if (!skinned)
+    throw std::runtime_error("Calling updateAnimator on unskinned model");
   if (!anim->animation) return;
   anim->currentTime += anim->animation->tps *
                        engine->getRenderJob()->getStats().deltaTime *

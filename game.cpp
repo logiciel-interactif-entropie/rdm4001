@@ -81,8 +81,8 @@ Game::~Game() {
 size_t Game::getVersion() { return ENGINE_VERSION; }
 
 const char* Game::copyright() {
-  return R"a(RDM4001, a 3D game engine
-Copyright (C) 2024-2026 Entropy Interactive
+  return R"a(RDM4001, a 3D game engine 
+Copyright (C) 2024-2026 Logiciel Interactif Entropie
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

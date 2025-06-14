@@ -14,15 +14,17 @@
 #include "filesystem.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
+#include "gfx/camera.hpp"
 #include "gfx/engine.hpp"
 #include "gfx/imgui/imgui.h"
 #include "gfx/mesh.hpp"
-#include "gfx/stb_image.h"
+#include "gfx/viewport.hpp"
 #include "logging.hpp"
 #include "settings.hpp"
 namespace rdm {
 ResourceManager::ResourceManager() {
   missingTexture = load<resource::Texture>("dat5/missingtexture.png");
+  previewViewport = NULL;
 }
 
 void BaseResource::loadData() {
@@ -96,31 +98,74 @@ void ResourceManager::tickGfx(gfx::Engine* engine) {
   }
 }
 
+static BaseResource* selectedResource = NULL;
+static resource::Model::Animator* animator = NULL;
+
 void ResourceManager::imgui(gfx::Engine* engine) {
-  ImGui::Begin("ResourceManager");
-  ImGui::BeginTabBar("Resources");
-  for (auto& [id, resource] : resources) {
-    ImGui::PushID(id.c_str());
-    if (ImGui::BeginTabItem(id.c_str())) {
-      ImGui::Text("Type %i, DR: %s", resource->getType(),
-                  resource->getDataReady() ? "true" : "false");
-      if (resource::BaseGfxResource* gfxr =
-              dynamic_cast<resource::BaseGfxResource*>(resource.get())) {
-        ImGui::Text("R: %s", gfxr->getReady() ? "true" : "false");
-        if (resource::Texture* texture =
-                dynamic_cast<resource::Texture*>(resource.get())) {
-          ImGui::Image(texture->getTexture()->getImTextureId(),
-                       ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
-        }
-      }
+  const glm::ivec2 imgSize(256, 256);
 
-      resource->imguiDebug();
+  if (!previewViewport) {
+    gfx::ViewportGfxSettings settings = gfx::ViewportGfxSettings();
+    settings.format = gfx::BaseTexture::RGBA8;
+    settings.resolution = imgSize;
+    previewViewport = new gfx::Viewport(engine, settings);
+    gfx::Camera& cam = previewViewport->getCamera();
 
-      ImGui::EndTabItem();
-    }
-    ImGui::PopID();
+    cam.setTarget(glm::vec3(0));
+    cam.setFar(1000.f);
+    cam.setFOV(45.f);
+    cam.setUp(glm::vec3(0.f, 0.f, -1.0));
   }
-  ImGui::EndTabBar();
+
+  if (!animator) {
+    animator = new resource::Model::Animator();
+  }
+
+  gfx::Camera& cam = previewViewport->getCamera();
+  if (selectedResource) {
+    if (resource::Model* model =
+            dynamic_cast<resource::Model*>(selectedResource)) {
+      resource::Model::BoundingBox box = model->getBoundingBox();
+      float v = glm::distance(box.min, box.max);
+      glm::vec3 p = (box.min + box.max) / 2.f;
+      cam.setPosition(p + glm::vec3(v * sinf(engine->getTime()),
+                                    v * cosf(engine->getTime()), 2.f));
+      cam.setTarget(p);
+
+      void* _ = engine->setViewport(previewViewport);
+      engine->getDevice()->clear(0.f, 0.f, 0.f, 0.f);
+      engine->getDevice()->clearDepth();
+      model->render(engine->getDevice(), animator);
+      engine->finishViewport(_);
+    }
+  }
+
+  ImGui::Begin("ResourceManager");
+
+  for (auto& [id, resource] : resources) {
+    if (ImGui::Button(resource->getName().c_str()))
+      selectedResource = resource.get();
+  }
+  if (selectedResource) {
+    ImGui::Text("Type %i, DR: %s", selectedResource->getType(),
+                selectedResource->getDataReady() ? "true" : "false");
+    if (resource::BaseGfxResource* gfxr =
+            dynamic_cast<resource::BaseGfxResource*>(selectedResource)) {
+      ImGui::Text("R: %s", gfxr->getReady() ? "true" : "false");
+      if (resource::Texture* texture =
+              dynamic_cast<resource::Texture*>(selectedResource)) {
+        ImGui::Image(texture->getTexture()->getImTextureId(), ImVec2(256, 256),
+                     ImVec2(0, 1), ImVec2(1, 0));
+      }
+      if (resource::Model* model =
+              dynamic_cast<resource::Model*>(selectedResource)) {
+        ImGui::Image(previewViewport->get()->getImTextureId(),
+                     ImVec2(imgSize.x, imgSize.y));
+      }
+    }
+
+    selectedResource->imguiDebug();
+  }
   ImGui::End();
 }
 

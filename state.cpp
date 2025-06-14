@@ -191,7 +191,8 @@ GameState::GameState(Game* game) {
         Graph::Node node;
         node.basis = glm::identity<glm::mat3>();
         node.origin = glm::vec3(0);
-        gfx::Camera& camera = game->getGfxEngine()->getCamera();
+        gfx::Camera& camera =
+            game->getGfxEngine()->getCurrentViewport()->getCamera();
         float time = game->getGfxEngine()->getTime();
         game->getGfxEngine()->setClearColor(glm::vec3(0.0, 0.0, 0.0));
         if (time < 1.0) {

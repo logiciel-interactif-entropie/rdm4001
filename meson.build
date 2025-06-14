@@ -132,6 +132,8 @@ gamelib = static_library('game', [
   'gfx/mesh.hpp',
   'gfx/video.cpp',
   'gfx/video.hpp',
+  'gfx/viewport.cpp',
+  'gfx/viewport.hpp',
   'gfx/stb_image.h',
 
   'gfx/base_context.cpp',

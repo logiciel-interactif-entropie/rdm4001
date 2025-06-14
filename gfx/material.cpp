@@ -76,7 +76,7 @@ void Material::addTechnique(std::shared_ptr<Technique> qu) {
 BaseProgram* Material::prepareDevice(BaseDevice* device, int techniqueId) {
   if (techniques.size() <= techniqueId) return NULL;
   Engine* engine = device->getEngine();
-  Camera camera = engine->getCamera();
+  Camera camera = engine->getCurrentViewport()->getCamera();
   BaseProgram* program = techniques[techniqueId]->getProgram();
   BaseProgram::Parameter p;
   p.matrix4x4 = camera.getProjectionMatrix();

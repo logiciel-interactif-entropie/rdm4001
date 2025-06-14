@@ -12,6 +12,7 @@
 #include "logging.hpp"
 #include "scheduler.hpp"
 #include "settings.hpp"
+#include "viewport.hpp"
 #include "world.hpp"
 
 #ifndef DISABLE_EASY_PROFILER
@@ -158,7 +159,21 @@ class RenderJob : public SchedulerJob {
         lastBloom = r_bloom.getBool();
         lastScale = r_scale.getFloat();
         engine->windowResolution = bufSize;
+        ViewportGfxSettings settings = engine->viewport->getSettings();
+        settings.numColorBuffers = r_bloom.getBool() ? 2 : 1;
+        settings.resolution = engine->windowResolution;
+
+        glm::vec2 fbSizeF = engine->windowResolution;
+        double s = std::min(engine->maxFbScale, (double)r_scale.getFloat());
+        fbSizeF *= s;
+        if (engine->forcedAspect != 0.0) {
+          fbSizeF.x = fbSizeF.y * engine->forcedAspect;
+        }
+        fbSizeF = glm::max(fbSizeF, glm::vec2(1, 1));
+        engine->targetResolution = fbSizeF;
+
         engine->initializeBuffers(bufSize, true);
+        engine->viewport->updateSettings(settings);
       }
 
 #ifndef DISABLE_EASY_PROFILER
@@ -174,8 +189,7 @@ class RenderJob : public SchedulerJob {
 #ifndef DISABLE_EASY_PROFILER
       EASY_BLOCK("Setup Frame");
 #endif
-      void* _ =
-          engine->device->bindFramebuffer(engine->postProcessFrameBuffer.get());
+      void* _ = engine->viewport->bind();
 
       {
         BaseFrameBuffer::AttachmentPoint drawBuffers[] = {
@@ -203,8 +217,6 @@ class RenderJob : public SchedulerJob {
       device->setDepthState(BaseDevice::LEqual);
       device->setCullState(BaseDevice::FrontCW);
 
-      engine->getCamera().updateCamera(
-          glm::vec2(engine->targetResolution.x, engine->targetResolution.y));
 #ifndef DISABLE_EASY_PROFILER
       EASY_END_BLOCK;
 #endif
@@ -218,7 +230,7 @@ class RenderJob : public SchedulerJob {
                     e.what());
       }
 
-      engine->device->unbindFramebuffer(_);
+      engine->viewport->unbind(_);
 
 #ifndef DISABLE_EASY_PROFILER
       EASY_BLOCK("Render Draw Buffer");
@@ -252,7 +264,7 @@ class RenderJob : public SchedulerJob {
                           .texture.slot = 0,
                           .texture.texture =
                               firstIteration
-                                  ? engine->fullscreenTextureBloom.get()
+                                  ? engine->viewport->get(1)
                                   : engine->pingpongTexture[!horizontal]
                                         .get()});
                 });
@@ -270,7 +282,7 @@ class RenderJob : public SchedulerJob {
       device->viewport(0, 0, engine->windowResolution.x,
                        engine->windowResolution.y);
       engine->renderFullscreenQuad(
-          engine->fullscreenTexture.get(), NULL, [this](BaseProgram* p) {
+          engine->viewport->get(0), NULL, [this](BaseProgram* p) {
             if (r_bloom.getBool())
               p->setParameter(
                   "texture1", DtSampler,
@@ -345,6 +357,12 @@ Engine::Engine(World* world, void* hwnd) {
 
   clearColor = glm::vec3(0.3, 0.3, 0.3);
 
+  ViewportGfxSettings settings;
+  settings.resolution = glm::ivec2(1, 1);
+  settings.msaaSamples = fullscreenSamples;
+  settings.numColorBuffers = 2;  // color, bloom
+  viewport.reset(new Viewport(this, settings));
+
   fullscreenMaterial =
       materialCache->getOrLoad("PostProcess").value_or(nullptr);
   if (fullscreenMaterial) {
@@ -390,22 +408,13 @@ void Engine::initializeBuffers(glm::vec2 res, bool reset) {
 
   // set up buffers for post processing/hdr
   if (!reset) {
-    postProcessFrameBuffer = device->createFrameBuffer();
     fullscreenBuffer = device->createBuffer();
-    fullscreenTexture = device->createTexture();
-    fullscreenTextureDepth = device->createTexture();
-    fullscreenTextureBloom = device->createTexture();
     fullScreenArrayPointers = device->createArrayPointers();
     fullScreenArrayPointers->addAttrib(BaseArrayPointers::Attrib(
         DataType::DtVec2, 0, 3, 0, 0, fullscreenBuffer.get()));
     fullscreenBuffer->upload(BaseBuffer::Array, BaseBuffer::StaticDraw,
                              sizeof(float) * 6,
                              (float[]){0.0, 0.0, 2.0, 0.0, 0.0, 2.0});
-  } else {
-    postProcessFrameBuffer->destroyAndCreate();
-    fullscreenTexture->destroyAndCreate();
-    fullscreenTextureDepth->destroyAndCreate();
-    fullscreenTextureBloom->destroyAndCreate();
   }
 
   glm::vec2 fbSizeF = res;
@@ -418,26 +427,6 @@ void Engine::initializeBuffers(glm::vec2 res, bool reset) {
   targetResolution = fbSizeF;
 
   try {
-    // set resolutions of buffers
-    fullscreenTexture->reserve2dMultisampled(
-        fbSizeF.x, fbSizeF.y, BaseTexture::RGBAF32, fullscreenSamples);
-
-    postProcessFrameBuffer->setTarget(fullscreenTexture.get());
-
-    fullscreenTextureDepth->reserve2dMultisampled(
-        fbSizeF.x, fbSizeF.y, BaseTexture::D24S8, fullscreenSamples, true);
-
-    postProcessFrameBuffer->setTarget(fullscreenTextureDepth.get(),
-                                      BaseFrameBuffer::DepthStencil);
-
-    if (r_bloom.getBool()) {
-      fullscreenTextureBloom->reserve2dMultisampled(
-          fbSizeF.x, fbSizeF.y, BaseTexture::RGBAF32, fullscreenSamples);
-
-      postProcessFrameBuffer->setTarget(fullscreenTextureBloom.get(),
-                                        BaseFrameBuffer::Color1);
-    }
-
     // set up ping pong buffers for gaussian blur
     for (int i = 0; i < 2; i++) {
       if (!reset) {
@@ -454,19 +443,8 @@ void Engine::initializeBuffers(glm::vec2 res, bool reset) {
         pingpongFramebuffer[i]->setTarget(pingpongTexture[i].get());
       }
     }
-
-    if (postProcessFrameBuffer->getStatus() != BaseFrameBuffer::Complete) {
-      Log::printf(LOG_ERROR, "BaseFrameBuffer::getStatus() = %i",
-                  postProcessFrameBuffer->getStatus());
-    }
   } catch (std::exception& e) {
     Log::printf(LOG_ERROR, "Creating post fb: %s", e.what());
-  }
-  Log::printf(LOG_DEBUG, "Updating size of framebuffer to (%f,%f)", fbSizeF.x,
-              fbSizeF.y);
-  if (postProcessFrameBuffer->getStatus() != BaseFrameBuffer::Complete) {
-    Log::printf(LOG_ERROR, "BaseFrameBuffer::getStatus() = %i",
-                postProcessFrameBuffer->getStatus());
   }
 }
 
@@ -541,5 +519,27 @@ void Engine::deleteEntity(Entity* entity) {
       entities.erase(entities.begin() + i);
       break;
     }
+}
+
+void* Engine::setViewport(Viewport* viewport) {
+  void* vp = currentViewport;
+  vpRef = viewport->bind();
+  viewport->applyRenderState();
+  currentViewport = viewport;
+  return vp;
+}
+
+void Engine::finishViewport(void* _) {
+  currentViewport->unbind(vpRef);
+  Viewport* oldVp = (Viewport*)_;
+  if (oldVp) {
+    oldVp->unbind(vpRef);
+  }
+  currentViewport = oldVp;
+  if (currentViewport) {
+    currentViewport->applyRenderState();
+  } else {
+    viewport->applyRenderState();
+  }
 }
 }  // namespace rdm::gfx

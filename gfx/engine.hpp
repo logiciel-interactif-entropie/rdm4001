@@ -17,6 +17,7 @@
 #include "scheduler.hpp"
 #include "signal.hpp"
 #include "video.hpp"
+#include "viewport.hpp"
 
 namespace rdm {
 class World;
@@ -62,13 +63,11 @@ class Engine {
   std::unique_ptr<VideoRenderer> videoRenderer;
   std::vector<std::unique_ptr<Entity>> entities;
 
-  std::unique_ptr<BaseTexture> fullscreenTexture;
-  std::unique_ptr<BaseTexture> fullscreenTextureBloom;
-  std::unique_ptr<BaseTexture> fullscreenTextureDepth;
+  std::unique_ptr<Viewport> viewport;
+
   std::unique_ptr<BaseBuffer> fullscreenBuffer;
   std::unique_ptr<BaseArrayPointers> fullScreenArrayPointers;
   std::shared_ptr<Material> fullscreenMaterial;
-  std::unique_ptr<BaseFrameBuffer> postProcessFrameBuffer;
 
   std::unique_ptr<BaseFrameBuffer> pingpongFramebuffer[2];
   std::unique_ptr<BaseTexture> pingpongTexture[2];
@@ -76,8 +75,6 @@ class Engine {
   int fullscreenSamples;
 
   float time;
-
-  Camera cam;
 
   glm::vec3 clearColor;
 
@@ -101,6 +98,9 @@ class Engine {
   double forcedAspect;
 
   RenderPass passes[RenderPass::_Max];
+
+  Viewport* currentViewport;
+  void* vpRef;
 
  public:
   Engine(World* world, void* hwnd);
@@ -165,6 +165,14 @@ class Engine {
 
   float getTime() { return time; }
 
-  Camera& getCamera() { return cam; }
+  Viewport* getMainViewport() { return viewport.get(); }
+  Viewport* getCurrentViewport() {
+    return currentViewport ? currentViewport : getMainViewport();
+  };
+
+  gfx::Camera& getCamera() { return getCurrentViewport()->getCamera(); }
+
+  void* setViewport(Viewport* viewport);
+  void finishViewport(void* _);
 };
 }  // namespace rdm::gfx
