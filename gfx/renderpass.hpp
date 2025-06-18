@@ -10,6 +10,7 @@ class RenderPass {
   enum Pass {
     Opaque,
     Transparent,
+    HUD,
     _Max,
   };
 

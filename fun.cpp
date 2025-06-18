@@ -86,7 +86,7 @@ std::string Fun::getModuleName() {
   std::string sp;
   std::ifstream("/proc/self/comm") >> sp;
   return sp;
-#elif defined(_WIN32
+#elif defined(_WIN32)
   char buf[MAX_PATH];
   GetModuleFileNameA(nullptr, buf, MAX_PATH);
   return buf;

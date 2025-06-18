@@ -22,6 +22,9 @@ class RenderCommand {
   gfx::BaseDevice::DrawType type;
   gfx::BaseTexture* texture[NR_MAX_TEXTURES];
   std::optional<glm::mat4> model;
+  std::optional<glm::vec2> scale;
+  std::optional<glm::vec2> offset;
+  std::optional<glm::vec3> color;
   size_t count;
   void* first;
 
@@ -34,8 +37,14 @@ class RenderCommand {
     this->texture[id] = texture;
   }
   void setModel(std::optional<glm::mat4> model) { this->model = model; }
+  void setScale(std::optional<glm::vec2> scale) { this->scale = scale; }
+  void setOffset(std::optional<glm::vec2> offset) { this->offset = offset; }
+  void setColor(std::optional<glm::vec3> color) { this->color = color; }
   gfx::BaseTexture* getTexture(int id) const { return texture[id]; }
   std::optional<glm::mat4> getModel() const { return model; };
+  std::optional<glm::vec2> getScale() const { return scale; };
+  std::optional<glm::vec2> getOffset() const { return offset; };
+  std::optional<glm::vec3> getColor() const { return color; }
 
   DirtyFields render(gfx::Engine* engine);
 };
@@ -44,9 +53,10 @@ struct RenderListSettings {
   BaseDevice::CullState cull;
   BaseDevice::DepthStencilState state;
 
-  RenderListSettings() {
-    cull = BaseDevice::FrontCCW;
-    state = BaseDevice::LEqual;
+  RenderListSettings(BaseDevice::CullState cull = BaseDevice::FrontCCW,
+                     BaseDevice::DepthStencilState state = BaseDevice::LEqual) {
+    this->cull = cull;
+    this->state = state;
   }
 };
 
@@ -61,6 +71,7 @@ class RenderList {
   RenderList(gfx::BaseProgram* program, gfx::BaseArrayPointers* pointers,
              RenderListSettings settings = RenderListSettings());
 
+  gfx::BaseProgram* getProgram() { return program; }
   void clear() { commands.clear(); }
   void add(RenderCommand& command);
   void render(gfx::Engine* engine);

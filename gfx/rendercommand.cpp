@@ -52,6 +52,7 @@ void RenderList::render(gfx::Engine* engine) {
   if (pointers) pointers->bind();
   BaseTexture* oldTextures[NR_MAX_TEXTURES] = {0};
   glm::mat4 lastModel = glm::identity<glm::mat4>();
+  glm::vec3 lastColor = glm::vec3(-1.f);
   for (int i = 0; i < commands.size(); i++) {
     RenderCommand command = commands[i];
     if (program) {
@@ -73,6 +74,24 @@ void RenderList::render(gfx::Engine* engine) {
           lastModel = model;
           needsRebind = true;
         }
+      }
+      if (command.getColor()) {
+        glm::vec3 color = command.getColor().value();
+        if (lastColor != color) {
+          program->setParameter("color", DtVec3, {.vec3 = color});
+          lastColor = color;
+          needsRebind = true;
+        }
+      }
+      if (command.getOffset()) {
+        program->setParameter("offset", DtVec2,
+                              {.vec2 = command.getOffset().value()});
+        needsRebind = true;
+      }
+      if (command.getScale()) {
+        program->setParameter("scale", DtVec2,
+                              {.vec2 = command.getScale().value()});
+        needsRebind = true;
       }
       if (needsRebind) program->bind();
     }

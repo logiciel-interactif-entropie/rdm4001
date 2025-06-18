@@ -113,6 +113,7 @@ PhysicsWorld::PhysicsWorld(World* world) {
       new btDiscreteDynamicsWorld(dispatcher.get(), overlappingPairCache.get(),
                                   solver.get(), collisionConfiguration.get()));
   dynamicsWorld->setGravity(btVector3(0, -10, 0));
+  stepSimulation = true;
 
   Log::printf(LOG_DEBUG, "Initialized physics world");
 }
@@ -160,6 +161,7 @@ void PhysicsWorld::stepWorld() {
 
     if (stepSimulation) dynamicsWorld->stepSimulation(PHYSICS_FRAMERATE, 10);
   }
+
   if (stepSimulation) physicsStepping.fire();
 }
 };  // namespace rdm

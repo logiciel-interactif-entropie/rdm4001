@@ -2,6 +2,7 @@
 #include <assimp/IOStream.hpp>
 #include <assimp/IOSystem.hpp>
 #include <assimp/Importer.hpp>
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 
@@ -11,6 +12,7 @@
 
 #include "gfx/base_types.hpp"
 #include "gfx/engine.hpp"
+#include "gfx/stb_image.h"
 #include "resource.hpp"
 #include "settings.hpp"
 
@@ -90,6 +92,27 @@ void Model::gfxUpload(gfx::Engine* engine) {
     setReady();
     return;
   }
+
+  for (int i = 0; i < deferedTextures.size(); i++) {
+    Texture* texture = deferedTextures[i];
+    aiTexture* textureData = scene->mTextures[texture->textureId];
+    texture->texture = engine->getDevice()->createTexture();
+
+    if (textureData->mHeight == 0) {
+      int width, height, channels;
+      stbi_uc* uc = stbi_load_from_memory((stbi_uc*)textureData->pcData,
+                                          textureData->mWidth, &width, &height,
+                                          &channels, 4);
+      texture->texture->upload2d(width, height, gfx::DtUnsignedByte,
+                                 gfx::BaseTexture::RGBA, uc);
+    } else {
+      texture->texture->upload2d(textureData->mWidth, textureData->mHeight,
+                                 gfx::DtUnsignedByte, gfx::BaseTexture::RGBA,
+                                 (void*)textureData->pcData);
+    }
+  }
+  Log::printf(LOG_DEBUG, "Loaded %i textures", deferedTextures.size());
+  deferedTextures.clear();
 
   for (int mesh_id = 0; mesh_id < scene->mNumMeshes; mesh_id++) {
     aiMesh* mesh = scene->mMeshes[mesh_id];
@@ -244,19 +267,32 @@ void Model::onLoadData(common::OptionalData data) {
       Material& matData = materials[material->GetName().C_Str()];
 
       if (material->GetTextureCount(aiTextureType_DIFFUSE)) {
+        Texture& texture = matData.diffuse;
+        texture.texture_ref = NULL;
         std::string texturePath;
         {
           aiString aiTexturePath;
           material->GetTexture(aiTextureType_DIFFUSE, 0, &aiTexturePath);
-          texturePath = dir + aiTexturePath.C_Str();
-        }
 
-        matData.diffuse =
-            getResourceManager()->load<resource::Texture>(texturePath.c_str());
-        if (!matData.diffuse)
-          Log::printf(LOG_ERROR,
-                      "Could not load diffuse texture %s for material %s",
-                      texturePath.c_str(), material->GetName().C_Str());
+          if (aiTexturePath.C_Str()[0] == '*') {
+            texturePath = aiTexturePath.C_Str();
+            texture.textureId = std::atoi(texturePath.substr(1).c_str());
+            texture.external = false;
+
+            // defer loading this
+            deferedTextures.push_back(&texture);
+          } else {
+            texture.external = true;
+            texturePath = dir + aiTexturePath.C_Str();
+            matData.diffuse.texture_ref =
+                getResourceManager()->load<resource::Texture>(
+                    texturePath.c_str());
+            if (!matData.diffuse.texture_ref)
+              Log::printf(LOG_ERROR,
+                          "Could not load diffuse texture %s for material %s",
+                          texturePath.c_str(), material->GetName().C_Str());
+          }
+        }
       }
     }
     for (int i = 0; i < scene->mNumMeshes; i++) {
@@ -358,12 +394,14 @@ void Model::render(
 
     for (auto& [name, mesh] : meshes) {
       Material& mat = materials[mesh.material];
-      bp->setParameter(
-          "diffuse", gfx::DtSampler,
-          {
-              .texture.texture = mat.diffuse ? mat.diffuse->getTexture() : NULL,
-              .texture.slot = 0,
-          });
+      gfx::BaseTexture* texture = mat.diffuse.external
+                                      ? mat.diffuse.texture_ref->getTexture()
+                                      : mat.diffuse.texture.get();
+      bp->setParameter("diffuse", gfx::DtSampler,
+                       {
+                           .texture.texture = texture,
+                           .texture.slot = 0,
+                       });
 
       bp->bind();
       mesh.render(device);

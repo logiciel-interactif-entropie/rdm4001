@@ -45,8 +45,7 @@ Console::Console(Game* game) {
       gfx::gui::OutFontTexture t = gfx::gui::FontRender::render(
           this->game->getGfxEngine()->getGuiManager()->getFontCache()->get(
               CONSOLE_FONT, CONSOLE_SIZE),
-          "(c) entropy software 2024-2026, RDM4001 is licensed under the GNU "
-          "GPLv3");
+          "(c) logiciel interactif entropie 2024-2026");
       copyrightWidth = t.w;
       copyrightHeight = t.h;
       copyrightTexture->upload2d(t.w, t.h, gfx::DtUnsignedByte,
@@ -63,6 +62,7 @@ Console::Console(Game* game) {
     visible = true;
     Input::singleton()->startEditingText();
 #endif
+  } else {
   }
 }
 

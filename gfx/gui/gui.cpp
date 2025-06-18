@@ -43,8 +43,9 @@ GuiManager::GuiManager(gfx::Engine* engine) {
       DtFloat, 0, 2, sizeof(float) * 2, 0, squareArrayBuffer.get()));
   squareArrayPointers->upload();
 
-  parseXml("dat3/root.xml");
-  parseXml(std::format("dat3/{}.xml", engine->getWorld()->getName()).c_str());
+  // parseXml("dat3/root.xml");
+  // parseXml(std::format("dat3/{}.xml",
+  // engine->getWorld()->getName()).c_str());
 }
 
 void Component::scriptUpdate(script::Script* script) {

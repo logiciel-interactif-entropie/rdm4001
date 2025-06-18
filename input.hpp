@@ -80,7 +80,11 @@ class Input {
     SDL_Keycode negative;
   };
 
-  glm::vec2 getMouseDelta() { return mouseDelta; };
+  glm::vec2 getMouseDelta() {
+    glm::vec2 d = mouseDelta;
+    mouseDelta = glm::vec2(0);
+    return d;
+  };
   glm::vec2 getMousePosition() { return mousePosition; };
 
   Axis* newAxis(std::string axis, SDL_Keycode positive, SDL_Keycode negative);

@@ -1,5 +1,7 @@
 #include "scheduler.hpp"
 
+#include <unistd.h>
+
 #include <chrono>
 
 #include "input.hpp"
@@ -85,6 +87,8 @@ void SchedulerJob::task(SchedulerJob* job) {
   prctl(PR_SET_NAME, jobName.c_str());
 #endif
 #endif
+  job->osPid = getpid();
+  job->osTid = gettid();
 #ifndef DISABLE_EASY_PROFILER
   EASY_THREAD_SCOPE(jobName.c_str());
 #endif
@@ -124,6 +128,7 @@ void SchedulerJob::task(SchedulerJob* job) {
       InputObject quitObject{.type = InputObject::Quit};
       Input::singleton()->postEvent(quitObject);
     }
+
     switch (r) {
       case Stepped:
         break;
@@ -194,6 +199,7 @@ SchedulerJob::Result SchedulerJob::step() { return Stepped; }
 void SchedulerJob::stopBlocking() {
   if (state == Running) {
     state = StopPlease;
+    interrupt();
     if (stopOnCancel) killMutex.unlock();
     while (state != Stopped) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));

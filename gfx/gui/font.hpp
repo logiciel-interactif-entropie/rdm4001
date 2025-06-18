@@ -17,6 +17,7 @@ struct OutFontTexture {
   int w;
   int h;
 
+  OutFontTexture() { data = NULL; }
   ~OutFontTexture();
 };
 

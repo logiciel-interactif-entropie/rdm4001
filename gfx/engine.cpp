@@ -8,8 +8,10 @@
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
 #include "gl_device.hpp"
+#include "gui/ngui.hpp"
 #include "imgui/imgui.h"
 #include "logging.hpp"
+#include "renderpass.hpp"
 #include "scheduler.hpp"
 #include "settings.hpp"
 #include "viewport.hpp"
@@ -476,9 +478,22 @@ void Engine::render() {
   const char* passName[] = {
       "Opaque",
       "Transparent",
+      "HUD",
   };
+
+  ngui->render();
+
   for (int i = 0; i < RenderPass::_Max; i++) {
     device->dbgPushGroup(passName[i]);
+    switch ((RenderPass::Pass)i) {
+      case RenderPass::HUD:
+        getDevice()->clearDepth();
+        getDevice()->setBlendState(BaseDevice::SrcAlpha,
+                                   BaseDevice::OneMinusSrcAlpha);
+        break;
+      default:
+        break;
+    }
     passes[i].render(this);
     device->dbgPopGroup();
   }
@@ -503,6 +518,7 @@ void Engine::render() {
 
 void Engine::initialize() {
   gui = std::unique_ptr<gui::GuiManager>(new gui::GuiManager(this));
+  ngui = std::unique_ptr<gui::NGuiManager>(new gui::NGuiManager(this));
   isInitialized = true;
 
   initialized.fire();

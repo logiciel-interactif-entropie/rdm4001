@@ -29,7 +29,7 @@ FpsControllerSettings::FpsControllerSettings() {
   capsuleHeight = 46.f;
   capsuleRadius = 16.f;
   capsuleMass = 1.f;
-  maxSpeed = 160.f;
+  maxSpeed = 260.f;
   maxAccel = 20.f;
   friction = 4.0f;
   stopSpeed = 40.f;

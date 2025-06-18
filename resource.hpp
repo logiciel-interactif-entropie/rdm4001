@@ -151,14 +151,22 @@ class Model : public BaseGfxResource {
 
   const aiScene* scene;
 
+  struct Texture {
+    bool external;
+    int textureId;
+    std::unique_ptr<gfx::BaseTexture> texture;
+    resource::Texture* texture_ref;
+  };
+
   struct Material {
-    resource::Texture* diffuse;
+    Texture diffuse;
   };
 
   std::map<std::string, gfx::Mesh> meshes;
   std::map<std::string, gfx::BoneInfo> boneInfo;
   std::shared_ptr<gfx::Material> gfx_material;
   std::map<std::string, Material> materials;
+  std::vector<Texture*> deferedTextures;
 
   glm::mat4 inverseGlobalTransform;
 

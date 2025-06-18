@@ -107,87 +107,16 @@ GameState::GameState(Game* game) {
         mb_end_module(s);
       });
 
-  game->getGfxEngine()->initialized.listen([this, game] {
-    auto mainMenuButtons =
-        game->getGfxEngine()->getGuiManager()->getComponentByName(
-            "MainMenuButtons");
-    mainMenuButtons.value()->elements["Quit"].mouseDown.listen([] {
-      InputObject obj;
-      obj.type = InputObject::Quit;
-      Input::singleton()->postEvent(obj);
-    });
-    mainMenuButtons.value()->elements["OnlinePlay"].mouseDown.listen(
-        [this] { setState(MenuOnlinePlay); });
-
-    auto menuOnlinePlay =
-        game->getGfxEngine()->getGuiManager()->getComponentByName(
-            "MenuOnlinePlay");
-    if (menuOnlinePlay) {
-      menuOnlinePlay.value()->elements["Cancel"].mouseDown.listen(
-          [this] { setState(MainMenu); });
-      menuOnlinePlay.value()->elements["Connect"].mouseDown.listen(
-          [this, game, menuOnlinePlay] {
-            std::string ip =
-                menuOnlinePlay.value()->elements["IPAddress"].value;
-            std::string port = menuOnlinePlay.value()->elements["Port"].value;
-            game->getWorld()->getNetworkManager()->connect(
-                ip, std::atoi(port.c_str()));
-            setState(InGame);
-          });
-    }
-  });
+  game->getGfxEngine()->initialized.listen([this, game] {});
 
   game->getGfxEngine()->renderStepped.listen([this, game] {
-    auto mainMenu =
-        game->getGfxEngine()->getGuiManager()->getComponentByName("MainMenu");
-    auto mainMenuButtons =
-        game->getGfxEngine()->getGuiManager()->getComponentByName(
-            "MainMenuButtons");
-    auto menuOnlinePlay =
-        game->getGfxEngine()->getGuiManager()->getComponentByName(
-            "MenuOnlinePlay");
-    auto hud = game->getGfxEngine()->getGuiManager()->getComponentByName("HUD");
-    if (!mainMenu) {
-      Log::printf(LOG_ERROR,
-                  "Define component MainMenu in the file for dat3/%s.xml",
-                  Fun::getModuleName().c_str());
-      return;
-    }
-    if (!mainMenuButtons) {
-      Log::printf(LOG_ERROR,
-                  "Define component MainMenuButtons in the file for "
-                  "dat3/%s.xml",
-                  Fun::getModuleName().c_str());
-      return;
-    }
     switch (state) {
       case Connecting:
       default:
-      case InGame:
-        game->getGfxEngine()->setClearColor(glm::vec3(0.f));
-        if (menuOnlinePlay) menuOnlinePlay.value()->domRoot.visible = false;
-        mainMenuButtons.value()->domRoot.visible = false;
-        mainMenu.value()->domRoot.visible = false;
-        hud.value()->domRoot.visible = true;
-        break;
-      case MenuOnlinePlay:
-        menuOnlinePlay.value()->domRoot.visible = true;
-        mainMenuButtons.value()->domRoot.visible = false;
-        mainMenu.value()->domRoot.visible = false;
-        hud.value()->domRoot.visible = false;
-        break;
       case MainMenu: {
         game->getGfxEngine()->setClearColor(glm::vec3(1.f));
-        mainMenuButtons.value()->domRoot.visible = true;
-        mainMenu.value()->domRoot.visible = true;
-        if (menuOnlinePlay) menuOnlinePlay.value()->domRoot.visible = false;
-        hud.value()->domRoot.visible = false;
       } break;
       case Intro: {
-        mainMenuButtons.value()->domRoot.visible = false;
-        mainMenu.value()->domRoot.visible = false;
-        hud.value()->domRoot.visible = false;
-        if (menuOnlinePlay) menuOnlinePlay.value()->domRoot.visible = false;
         Graph::Node node;
         node.basis = glm::identity<glm::mat3>();
         node.origin = glm::vec3(0);

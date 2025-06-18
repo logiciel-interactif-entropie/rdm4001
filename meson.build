@@ -21,6 +21,7 @@ bullet = dependency('Bullet')
 libsndfile = dependency('sndfile')
 curl = dependency('libcurl')
 boost_dep = dependency('boost', modules: ['program_options'])
+readline = dependency('readline')
 
 common_proj = subproject('common')
 common_dep = common_proj.get_variable('libcommon_dep')
@@ -98,6 +99,8 @@ gamelib = static_library('game', [
   'gfx/gui/api.hpp',
   'gfx/gui/gui.cpp',
   'gfx/gui/gui.hpp',
+  'gfx/gui/ngui.cpp',
+  'gfx/gui/ngui.hpp',
   'gfx/gui/font.cpp',
   'gfx/gui/font.hpp',
 
@@ -149,7 +152,7 @@ gamelib = static_library('game', [
   'gfx/gl_device.hpp',
   'gfx/gl_types.cpp',
   'gfx/gl_types.hpp',
-], cpp_args: options + obz_options, include_directories: [inc], dependencies: [libsndfile, boost_dep, enet, common_dep, glad_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, easy_profiler, curl])
+], cpp_args: options + obz_options, include_directories: [inc], dependencies: [libsndfile, boost_dep, enet, common_dep, glad_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, easy_profiler, curl, readline])
 
 rdm4001_dep = declare_dependency(include_directories: inc,
 				 link_with: gamelib)

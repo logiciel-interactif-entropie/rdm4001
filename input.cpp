@@ -12,9 +12,9 @@
 #ifdef __linux
 #include <pthread.h>
 #include <signal.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif
@@ -141,7 +141,7 @@ void Input::flushEvents() {
         keyDownSignals[event.data.key.key].fire();
       case InputObject::KeyUp:
         keyPressed = event.type == InputObject::KeyPress;
-        for (auto [name, _axis] : axis) {
+        /*for (auto [name, _axis] : axis) {
           if (_axis.positive == event.data.key.key) {
             if (keyPressed) {
               if (_axis.value == 0.0) _axis.value = 1.0;
@@ -156,7 +156,7 @@ void Input::flushEvents() {
             }
           }
           axis[name] = _axis;
-        }
+          }*/
         if (event.data.key.key < 255) {
           keysDown[event.data.key.key] = keyPressed;
         }
@@ -170,8 +170,8 @@ void Input::flushEvents() {
       case InputObject::MouseMove:
         mousePosition.x = event.data.mouse.position[0];
         mousePosition.y = event.data.mouse.position[1];
-        mouseDelta.x = ((float)event.data.mouse.delta[0]) / mouseSensitivity;
-        mouseDelta.y = ((float)event.data.mouse.delta[1]) / mouseSensitivity;
+        mouseDelta.x += ((float)event.data.mouse.delta[0]) / mouseSensitivity;
+        mouseDelta.y += ((float)event.data.mouse.delta[1]) / mouseSensitivity;
         break;
       default:
         break;
@@ -179,6 +179,13 @@ void Input::flushEvents() {
 
     onEvent.fire(event);
     events.pop_front();
+  }
+
+  for (auto& [name, _axis] : axis) {
+    float v = 0.f;
+    if (keysDown[_axis.positive]) v += 1.f;
+    if (keysDown[_axis.negative]) v -= 1.f;
+    _axis.value = v;
   }
 }
 

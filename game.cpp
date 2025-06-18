@@ -5,6 +5,7 @@
 #include <SDL2/SDL_video.h>
 
 #include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
@@ -27,6 +28,9 @@
 #else
 #warning Compiled without OBZ support.
 #endif
+#include <readline/history.h>
+#include <readline/readline.h>
+
 #include "settings.hpp"
 
 #ifdef __linux
@@ -57,6 +61,7 @@ Game::Game() {
   network::NetworkManager::initialize();
   resourceManager.reset(new ResourceManager());
 
+  initialized = false;
   window = NULL;
   worldSettings.game = this;
 
@@ -201,7 +206,7 @@ void Game::lateInitServer() {
   worldServer->getScheduler()->startAllJobs();
 }
 
-static CVar input_rate("input_rate", "20.0", CVARF_SAVE | CVARF_GLOBAL);
+static CVar input_rate("input_rate", "60.0", CVARF_SAVE | CVARF_GLOBAL);
 static CVar sv_ansi("sv_ansi", "1", CVARF_SAVE | CVARF_GLOBAL);
 
 class GameEventJob : public SchedulerJob {
@@ -218,6 +223,30 @@ class GameEventJob : public SchedulerJob {
   virtual double getFrameRate() { return 1.0 / input_rate.getFloat(); }
 };
 
+class ConsoleLineInputJob : public SchedulerJob {
+  Console* console;
+
+ public:
+  ConsoleLineInputJob(Console* console) : SchedulerJob("ConsoleLineInput") {
+    this->console = console;
+  }
+
+  virtual Result step() {
+    char* line = readline("] ");
+    if (line && *line) {
+      try {
+        this->console->command(line);
+      } catch (std::exception& e) {
+        Log::printf(LOG_ERROR, "Command error %s", e.what());
+      }
+      add_history(line);
+    }
+    return Stepped;
+  }
+
+  virtual double getFrameRate() { return 0.0; }
+};
+
 class ResourceManagerTickJob : public SchedulerJob {
   Game* game;
 
@@ -231,6 +260,8 @@ class ResourceManagerTickJob : public SchedulerJob {
     return Stepped;
   }
 };
+
+static CVar enable_console("enable_console", "1", CVARF_SAVE | CVARF_GLOBAL);
 
 void Game::earlyInit() {
   try {
@@ -252,8 +283,12 @@ void Game::earlyInit() {
           fprintf(stderr, "\033]0;%s\007", title.c_str());
         });
       }
-      if (!createdTickJob)
+      if (!createdTickJob) {
         worldServer->getScheduler()->addJob(new ResourceManagerTickJob(this));
+        if (enable_console.getBool())
+          worldServer->getScheduler()->addJob(
+              new ConsoleLineInputJob(console.get()));
+      }
       worldServer->getScheduler()->startAllJobs();
     }
 

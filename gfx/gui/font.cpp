@@ -1,8 +1,9 @@
 #include "font.hpp"
 
+#include <string.h>
+
 #include <format>
 
-#include <string.h>
 #include "SDL_error.h"
 #include "filesystem.hpp"
 #include "logging.hpp"
@@ -103,7 +104,9 @@ OutFontTexture FontRender::renderWrapped(Font* font, const char* text,
   return t;
 }
 
-OutFontTexture::~OutFontTexture() { delete data; }
+OutFontTexture::~OutFontTexture() {
+  if (data) delete data;
+}
 
 Font::~Font() {}
 

@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 
+#include <stdexcept>
+
 #include "json.hpp"
 using json = nlohmann::json;
 
@@ -112,6 +114,11 @@ void Settings::parseCommandLine(char* argv[], int argc) {
       "Hint to connect to port (only works on supported programs)");
 
   po::variables_map vm;
+  /*po::store(po::command_line_parser(argc, argv)
+                .options(desc)
+                .allow_unregistered()
+                .run(),
+                vm);*/
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
@@ -141,9 +148,22 @@ void Settings::parseCommandLine(char* argv[], int argc) {
     hintConnectPort = 7938;
   }
 
-  hintDs = vm.count("hintDs");
-
   load();
+
+  for (int i = 0; i < argc; i++) {
+    if (argv[i][0] == '+') {
+      std::string nam = std::string(argv[i]).substr(1);
+      std::string value = argv[++i];
+      Log::printf(LOG_DEBUG, "%s -> %s", nam.c_str(), value.c_str());
+      if (CVar* cvar = getCvar(nam.c_str())) {
+        cvar->setValue(value);
+      } else {
+        throw std::runtime_error("Unknown cvar");
+      }
+    }
+  }
+
+  hintDs = vm.count("hintDs");
 }
 
 void Settings::load() {

@@ -13,6 +13,7 @@
 #include "gfx/gui/gui.hpp"
 #include "gfx/mesh.hpp"
 #include "gfx/video.hpp"
+#include "gui/ngui.hpp"
 #include "renderpass.hpp"
 #include "scheduler.hpp"
 #include "signal.hpp"
@@ -60,6 +61,7 @@ class Engine {
   std::unique_ptr<BaseContext> context;
   std::unique_ptr<BaseDevice> device;
   std::unique_ptr<gui::GuiManager> gui;
+  std::unique_ptr<gui::NGuiManager> ngui;
   std::unique_ptr<VideoRenderer> videoRenderer;
   std::vector<std::unique_ptr<Entity>> entities;
 

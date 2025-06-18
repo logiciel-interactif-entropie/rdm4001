@@ -45,6 +45,9 @@ class SchedulerJob {
 
   std::atomic<State> state;
   std::thread thread;
+  pid_t osPid;
+  pid_t osTid;
+
   JobStatistics stats;
   std::timed_mutex killMutex;
 
@@ -90,6 +93,8 @@ class SchedulerJob {
   virtual void startup() {};
   virtual void shutdown() {};
 
+  virtual void interrupt() {};
+
   /**
    * @brief Called when your Job throws an exception, and you don't handle it.
    *
@@ -117,6 +122,8 @@ class SchedulerJob {
   void startTask();
 
   std::thread& getThread() { return thread; }
+  pid_t getOsPid() { return osPid; }
+  pid_t getOsTid() { return osTid; }
 };
 
 class Scheduler {
