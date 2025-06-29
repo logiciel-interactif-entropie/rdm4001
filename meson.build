@@ -17,7 +17,6 @@ glm = dependency('glm')
 openal = dependency('openal')
 assimp = dependency('assimp')
 enet = dependency('libenet')
-easy_profiler = dependency('easy_profiler')
 bullet = dependency('Bullet')
 libsndfile = dependency('sndfile')
 curl = dependency('libcurl')
@@ -38,9 +37,18 @@ options = ['-DDISABLE_EASY_PROFILER']
 #options = []
 
 
-inc = include_directories(['.', 'gfx/imgui', '/usr/include/bullet', 'subprojects/common'])
+inc_dirs = ['.', 'gfx/imgui', 'subprojects/common']
 
-game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, easy_profiler, curl, readline, libtomcrypt]
+# HACK because bullet cant find LinearMath without this
+if build_machine.system() == 'haiku'
+  warning('Haiku experimental!')
+  inc_dirs += ['/boot/system/develop/headers/bullet']
+elif build_machine.system() == 'linux'
+  inc_dirs += ['/usr/include/bullet']
+endif
+
+inc = include_directories(inc_dirs)
+game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, curl, readline, libtomcrypt]
 
 xtra_src = []
 
@@ -212,4 +220,4 @@ executable('roadtrip', [
   'roadtrip/america.cpp',
   'roadtrip/pawn.hpp',
   'roadtrip/pawn.cpp',
-], cpp_args: options, include_directories: [inc], dependencies: [common_dep, sdl2, glm, b3geometry_dep, easy_profiler], link_with: gamelib)
+], cpp_args: options, include_directories: [inc], dependencies: [common_dep, sdl2, glm, b3geometry_dep], link_with: gamelib)
