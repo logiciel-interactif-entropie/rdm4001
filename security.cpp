@@ -4,9 +4,10 @@
 
 #include "console.hpp"
 #include "game.hpp"
+#include "logging.hpp"
 #include "settings.hpp"
-#include "subprojects/common/logging.hpp"
-#include "subprojects/obz/obz.hpp"
+
+#define MAX_RSA_SIZE 4096
 
 extern const ltc_math_descriptor ltm_desc;
 const ltc_hash_descriptor& hash_desc = sha512_desc;
