@@ -37,10 +37,6 @@
 #include <signal.h>
 #endif
 
-#ifndef DISABLE_EASY_PROFILER
-#include <easy/profiler.h>
-#endif
-
 #include "gfx/imgui/backends/imgui_impl_sdl2.h"
 #include "gfx/imgui/imgui.h"
 
@@ -347,9 +343,6 @@ static CVar input_enableimgui("input_enableimgui", "1",
                               CVARF_SAVE | CVARF_GLOBAL);
 
 void Game::pollEvents() {
-#ifndef DISABLE_EASY_PROFILER
-  EASY_BLOCK("SDL_PollEvent");
-#endif
   std::scoped_lock l(Input::singleton()->getFlushingMutex());
 
   Input::singleton()->beginFrame();

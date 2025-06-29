@@ -19,10 +19,6 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#ifndef DISABLE_EASY_PROFILER
-#include <easy/profiler.h>
-#endif
-
 #define FPS_CONTROLLER_FRONT -1, 0, 0
 
 namespace rdm::putil {
@@ -199,10 +195,6 @@ void FpsController::detectGrounded() {
 }
 
 void FpsController::physicsStep() {
-#ifndef DISABLE_EASY_PROFILER
-  EASY_FUNCTION("FpsController::physicsStep");
-#endif
-
   if (!enable) {
     btTransform& transform = rigidBody->getWorldTransform();
     transform.setOrigin(btVector3(0.f, 0.f, 0.f));
@@ -230,10 +222,6 @@ void FpsController::physicsStep() {
   detectGrounded();
 
   if (localPlayer) {
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Local Player Calculation");
-#endif
-
     // Log::printf(LOG_DEBUG, "%.2f, %.2f, %.2f", transform.getOrigin().x(),
     // transform.getOrigin().y(), transform.getOrigin().z());
 

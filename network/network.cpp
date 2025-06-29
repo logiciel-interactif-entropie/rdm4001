@@ -17,10 +17,6 @@
 #include "settings.hpp"
 #include "world.hpp"
 
-#ifndef DISABLE_EASY_PROFILER
-#include <easy/profiler.h>
-#endif
-
 static const char* disconnectReasons[] = {"Disconnect by engine",
                                           "Disconnect by user", "Timeout"};
 
@@ -345,22 +341,11 @@ void NetworkManager::service() {
 
   std::scoped_lock l(crazyThingsMutex);
 
-#ifndef DISABLE_EASY_PROFILER
-  EASY_FUNCTION();
-#endif
-
   std::map<PacketId, int> packetFrameHistory;
 
   ENetEvent event;
 
-#ifndef DISABLE_EASY_PROFILER
-  EASY_BLOCK("Network Service");
-#endif
   while (enet_host_service(host, &event, net_service.getInt()) > 0) {
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Handle Service");
-#endif
-
     switch (event.type) {
       case ENET_EVENT_TYPE_RECEIVE: {
         bool unknownPacket = false;
@@ -841,9 +826,6 @@ void NetworkManager::service() {
         break;
     }
   }
-#ifndef DISABLE_EASY_PROFILER
-  EASY_END_BLOCK;
-#endif
 
   if (net_graph.getBool()) {
     std::scoped_lock l(packetHistoryMutex);
@@ -851,9 +833,6 @@ void NetworkManager::service() {
     packetHistory.push_back(packetFrameHistory);
   }
 
-#ifndef DISABLE_EASY_PROFILER
-  EASY_BLOCK("Network Tick");
-#endif
   for (auto& entity : entities) {
     try {
       entity.second->tick();
@@ -862,14 +841,8 @@ void NetworkManager::service() {
                   entity.second->getTypeName(), entity.first, e.what());
     }
   }
-#ifndef DISABLE_EASY_PROFILER
-  EASY_END_BLOCK;
-#endif
 
   if (backend) {
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Backend Peer Management");
-#endif
     for (auto& peer : peers) {
       std::vector<int> pendingUpdates;
 
@@ -1057,9 +1030,6 @@ void NetworkManager::service() {
                           timeStream.createPacket(0));
     }
   } else {
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Frontend Peer Management");
-#endif
     if (localPeer.playerEntity) {
       if (localPeer.playerEntity->remotePeerId.get() != localPeer.peerId) {
         localPeer.playerEntity = nullptr;

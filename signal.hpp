@@ -37,13 +37,7 @@ class Signal {
    */
   void fire(Args... a) {
     std::scoped_lock l(m);
-#ifndef DISABLE_EASY_PROFILER
-    EASY_FUNCTION();
-#endif
     if (pendingClosures.size() != 0) {
-#ifndef DISABLE_EASY_PROFILER
-      EASY_BLOCK("Closures");
-#endif
       for (auto closure : pendingClosures) {
         try {
           closure(a...);
@@ -57,9 +51,6 @@ class Signal {
       pendingClosures.clear();
     }
 
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Listeners");
-#endif
     for (auto listener : listeners) {
       try {
         listener.second(a...);

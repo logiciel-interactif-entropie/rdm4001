@@ -21,10 +21,6 @@
 #include "vk_device.hpp"
 #include "world.hpp"
 
-#ifndef DISABLE_EASY_PROFILER
-#include <easy/profiler.h>
-#endif
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -396,10 +392,6 @@ void Engine::setFullscreenMaterial(const char* name) {
 }
 
 void Engine::initializeBuffers(glm::vec2 res, bool reset) {
-#ifndef DISABLE_EASY_PROFILER
-  EASY_FUNCTION();
-#endif
-
   // set up buffers for post processing/hdr
   if (!reset) {
     fullscreenBuffer = device->createBuffer();

@@ -18,10 +18,6 @@
 #include <sys/prctl.h>
 #endif
 
-#ifndef DISABLE_EASY_PROFILER
-#include <easy/profiler.h>
-#endif
-
 #include "game.hpp"
 #include "gfx/imgui/imgui.h"
 
