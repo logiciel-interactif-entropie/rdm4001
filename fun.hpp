@@ -49,4 +49,8 @@ class Math {
     return v;
   }
 };
+
+#ifndef M_PI_2f
+#define M_PI_2f 1.57079632679489661923f
+#endif
 }  // namespace rdm
