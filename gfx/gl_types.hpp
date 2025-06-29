@@ -76,6 +76,8 @@ class GLBuffer : public BaseBuffer {
 
   // will automagically use glBufferSubData
   virtual void upload(Type type, Usage usage, size_t size, const void* data);
+  virtual void uploadSub(size_t offset, size_t size, const void* data);
+  virtual void setBind(int index, size_t offset, size_t size);
   virtual void* lock(Type type, Access access);
   virtual void unlock(void* lock);
   virtual size_t getSize() { return size; }
@@ -99,7 +101,7 @@ class GLFrameBuffer : public BaseFrameBuffer {
 
  public:
   GLFrameBuffer();
-  ~GLFrameBuffer();
+  virtual ~GLFrameBuffer();
 
   virtual void setTarget(BaseTexture* texture, AttachmentPoint point);
   virtual Status getStatus();

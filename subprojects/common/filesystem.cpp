@@ -1,6 +1,13 @@
 #include "filesystem.hpp"
 
+#ifdef __linux
 #include <linux/limits.h>
+#else
+#include <limits.h>
+#endif
+
+#include <stdlib.h>
+#include <string.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -95,7 +102,8 @@ DataFolderAPI::DataFolderAPI(std::string basedir) {
 }
 
 void DataFolderAPI::checkProperDir(const char* path) {
-  char real[PATH_MAX];
+  // TODO: fix function to properly check if paths are not allowed
+  /*char real[PATH_MAX];
   realpath((basedir + path).c_str(), real);
   char realbase[PATH_MAX];
   realpath(basedir.c_str(), realbase);
@@ -105,7 +113,7 @@ void DataFolderAPI::checkProperDir(const char* path) {
 
   for (int i = 0; i < realbase_s.length(); i++)
     if (realpath_s[i] != realbase_s[i])
-      throw std::runtime_error("Path outside of base");
+    throw std::runtime_error("Path outside of base");*/
 }
 
 bool DataFolderAPI::getFileExists(const char* path) {

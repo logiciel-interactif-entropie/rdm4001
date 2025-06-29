@@ -87,6 +87,8 @@ class Input {
   };
   glm::vec2 getMousePosition() { return mousePosition; };
 
+  float getMouseSensitivity() { return mouseSensitivity; };
+
   Axis* newAxis(std::string axis, SDL_Keycode positive, SDL_Keycode negative);
   Axis* getAxis(std::string axis);
 
@@ -103,6 +105,8 @@ class Input {
   bool isMouseButtonDown(int i) { return mouseButtonsDown[i]; }
 
   std::map<int, Signal<>> keyDownSignals;
+
+  std::mutex& getFlushingMutex() { return flushing; }
 
  private:
   std::map<std::string, Axis> axis;

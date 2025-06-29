@@ -38,6 +38,7 @@ class PhysicsWorld {
   bool debugDrawEnabled;
   bool debugDrawInit;
   bool stepSimulation;
+  World* world;
 
  public:
   PhysicsWorld(World* world);
@@ -52,6 +53,7 @@ class PhysicsWorld {
   void initializeDebugDraw(rdm::gfx::Engine* engine);
 
   btDiscreteDynamicsWorld* getWorld() { return dynamicsWorld.get(); }
+  World* getRWorld() { return world; }
   std::mutex mutex;
 };
 

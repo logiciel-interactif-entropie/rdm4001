@@ -2,6 +2,7 @@
 
 #include <SDL2/SDL_ttf.h>
 
+#include <glm/ext/vector_int2.hpp>
 #include <map>
 #include <memory>
 #include <string>
@@ -10,6 +11,8 @@ struct Font {
   TTF_Font* font;
 
   ~Font();
+
+  glm::ivec2 getTextSize(const char* text);
 };
 
 struct OutFontTexture {

@@ -33,6 +33,7 @@ class Viewport {
   std::unique_ptr<BaseTexture> depthBuffer;
   std::unique_ptr<BaseFrameBuffer> framebuffer;
   gfx::Engine* engine;
+  Camera frameCamera;
   Camera camera;
 
   void updateBuffers(bool firstTime);
@@ -57,6 +58,9 @@ class Viewport {
 
   void applyRenderState();
 
+  glm::vec2 project(glm::vec3 p);
+
   Camera& getCamera() { return camera; }
+  Camera getFrameCamera() { return frameCamera; }
 };
 }  // namespace rdm::gfx

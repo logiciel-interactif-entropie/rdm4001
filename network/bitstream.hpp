@@ -8,6 +8,8 @@
 #include <string>
 #include <typeinfo>
 #include <vector>
+
+#include "security.hpp"
 namespace rdm::network {
 class BitStreamException : public std::runtime_error {
   friend class BitStream;
@@ -35,6 +37,8 @@ class BitStream {
 
     ToServerLocal,
     ToClientLocal,
+
+    ToNewClient,
 
     FromServerLocal,
     FromClientLocal,
@@ -80,6 +84,9 @@ class BitStream {
 
   void writeString(std::string s);
   std::string readString();
+
+  void writeSignedMessage(SignedMessage msg);
+  SignedMessage readSignedMessage();
 
   ENetPacket* createPacket(enet_uint32 flags);
   std::vector<unsigned char> getDataVec();

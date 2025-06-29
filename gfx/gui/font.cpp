@@ -8,6 +8,11 @@
 #include "filesystem.hpp"
 #include "logging.hpp"
 namespace rdm::gfx::gui {
+glm::ivec2 Font::getTextSize(const char* text) {
+  glm::ivec2 p;
+  TTF_SizeUTF8(font, text, &p.x, &p.y);
+  return p;
+}
 
 OutFontTexture FontRender::render(Font* font, const char* text) {
   OutFontTexture t;

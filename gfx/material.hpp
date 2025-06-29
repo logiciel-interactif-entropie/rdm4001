@@ -1,4 +1,5 @@
 #pragma once
+#include <list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -86,11 +87,12 @@ class Material {
  */
 class MaterialCache {
   std::map<std::string, std::shared_ptr<Material>> cache;
-  std::string materialData;
+  std::list<std::string> materialDatas;
   BaseDevice* device;
 
  public:
   MaterialCache(BaseDevice* device);
+  void addDataFile(const char* path);
 
   /**
    * @brief Loads and caches a material, or just returns an already cached

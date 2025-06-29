@@ -18,12 +18,16 @@ typedef std::variant<std::string, int, float> Setting;
  * your project
  */
 #define CVARF_GLOBAL (1 << 3)
+#define CVARF_HIDDEN (1 << 4)
+
+#define CVARF_CONSOLE_ARGUMENT (1 << 5)
 
 class CVar {
   friend class Settings;
 
   std::string name;
   std::string value;
+  std::string defaultVar;
   unsigned long flags;
   bool dirty;
 
@@ -31,6 +35,7 @@ class CVar {
   CVar(const char* name, const char* defaultVar, unsigned long flags = 0);
   std::string getName() { return name; }
   std::string getValue() { return value; }
+  std::string getDefaultValue() { return defaultVar; }
   void setValue(std::string s);
 
   unsigned long getFlags() { return flags; }
@@ -67,19 +72,29 @@ class Settings {
 
   SettingsPrivate* p;
   std::map<std::string, CVar*> cvars;
+  std::map<std::string, CVar*> consoleArguments;
   std::string settingsPath;
+  std::string settingsPrivatePath;
   std::string gamePath;
   std::string hintConnect;
   int hintConnectPort;
 
-  void addCvar(const char* name, CVar* cvar) { cvars[name] = cvar; };
+  void addCvar(const char* name, CVar* cvar) {
+    if (cvar->getFlags() & CVARF_CONSOLE_ARGUMENT)
+      consoleArguments[name] = cvar;
+    else
+      cvars[name] = cvar;
+  };
 
  public:
   static Settings* singleton();
 
-  CVar* getCvar(const char* name) {
+  CVar* getCvar(const char* name, bool allowHidden = false) {
     auto it = cvars.find(name);
-    if (it != cvars.end()) return cvars[name];
+    if (it != cvars.end()) {
+      if (cvars[name]->flags & CVARF_HIDDEN && !allowHidden) return NULL;
+      return cvars[name];
+    }
     return NULL;
   };
 
@@ -87,7 +102,8 @@ class Settings {
   void load();
   void save();
 
-  std::vector<CVar*> getWithFlag(unsigned long mask = UINT64_MAX);
+  std::vector<CVar*> getWithFlag(unsigned long mask = UINT64_MAX,
+                                 bool allowHidden = false);
 
   void listCvars();
 

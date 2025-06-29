@@ -4,6 +4,7 @@
 #include <enet/types.h>
 #include <stdlib.h>
 
+#include <cstdint>
 #include <stdexcept>
 
 #include "crc_hash.hpp"
@@ -69,6 +70,23 @@ std::string BitStream::readString() {
   s.resize(size);
   for (int i = 0; i < size; i++) s[i] = read<char>();
   return s;
+}
+
+void BitStream::writeSignedMessage(SignedMessage msg) {
+  write<uint16_t>(msg.data.size());
+  for (int i = 0; i < msg.data.size(); i++) write<char>(msg.data[i]);
+  writeString(msg.sig);
+  writeString(msg.key);
+}
+
+SignedMessage BitStream::readSignedMessage() {
+  SignedMessage msg;
+  uint16_t size = read<uint16_t>();
+  msg.data.resize(size);
+  for (int i = 0; i < size; i++) msg.data[i] = read<char>();
+  msg.sig = readString();
+  msg.key = readString();
+  return msg;
 }
 
 ENetPacket* BitStream::createPacket(enet_uint32 flags) {

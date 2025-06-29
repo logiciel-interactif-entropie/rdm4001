@@ -3,10 +3,12 @@
 #include <cstdio>
 #include <stdexcept>
 
+#include "apis.hpp"
 #include "filesystem.hpp"
 #include "game.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
+#include "gl_context.hpp"
 #include "gl_device.hpp"
 #include "gui/ngui.hpp"
 #include "imgui/imgui.h"
@@ -15,6 +17,8 @@
 #include "scheduler.hpp"
 #include "settings.hpp"
 #include "viewport.hpp"
+#include "vk_context.hpp"
+#include "vk_device.hpp"
 #include "world.hpp"
 
 #ifndef DISABLE_EASY_PROFILER
@@ -25,6 +29,14 @@
 #include "stb_image.h"
 
 namespace rdm::gfx {
+#ifdef RDM4001_FEATURE_GLMODERN
+GFX_API_INSTANTIATOR(GLModern, gl::GLContext, gl::GLDevice);
+#endif
+
+#ifdef RDM4001_FEATURE_VULKAN
+GFX_API_INSTANTIATOR(Vulkan, vk::VKContext, vk::VKDevice);
+#endif
+
 TextureCache::TextureCache(BaseDevice* device) {
   this->device = device;
   this->invalidTexture = device->createTexture();
@@ -143,10 +155,10 @@ class RenderJob : public SchedulerJob {
   virtual void shutdown() { engine->context->unsetCurrent(); }
 
   virtual Result step() {
-#ifndef DISABLE_EASY_PROFILER
-    EASY_FUNCTION();
-#endif
     BaseDevice* device = engine->device.get();
+    Profiler& profiler = engine->getRenderJob()->getProfiler();
+
+    profiler.fun("step");
 
     bool bloomEnabled = r_bloom.getBool();
 
@@ -163,7 +175,6 @@ class RenderJob : public SchedulerJob {
         engine->windowResolution = bufSize;
         ViewportGfxSettings settings = engine->viewport->getSettings();
         settings.numColorBuffers = r_bloom.getBool() ? 2 : 1;
-        settings.resolution = engine->windowResolution;
 
         glm::vec2 fbSizeF = engine->windowResolution;
         double s = std::min(engine->maxFbScale, (double)r_scale.getFloat());
@@ -173,24 +184,14 @@ class RenderJob : public SchedulerJob {
         }
         fbSizeF = glm::max(fbSizeF, glm::vec2(1, 1));
         engine->targetResolution = fbSizeF;
+        settings.resolution = engine->targetResolution;
 
         engine->initializeBuffers(bufSize, true);
         engine->viewport->updateSettings(settings);
       }
 
-#ifndef DISABLE_EASY_PROFILER
-      EASY_BLOCK("Setup Frame");
-#endif
-
       engine->getWorld()->getGame()->getResourceManager()->tickGfx(engine);
 
-#ifndef DISABLE_EASY_PROFILER
-      EASY_END_BLOCK;
-#endif
-
-#ifndef DISABLE_EASY_PROFILER
-      EASY_BLOCK("Setup Frame");
-#endif
       void* _ = engine->viewport->bind();
 
       {
@@ -219,10 +220,6 @@ class RenderJob : public SchedulerJob {
       device->setDepthState(BaseDevice::LEqual);
       device->setCullState(BaseDevice::FrontCW);
 
-#ifndef DISABLE_EASY_PROFILER
-      EASY_END_BLOCK;
-#endif
-
       if (!engine->isInitialized) engine->initialize();
 
       try {
@@ -234,19 +231,12 @@ class RenderJob : public SchedulerJob {
 
       engine->viewport->unbind(_);
 
-#ifndef DISABLE_EASY_PROFILER
-      EASY_BLOCK("Render Draw Buffer");
-#endif
-
       device->setDepthState(BaseDevice::Always);
       device->setCullState(BaseDevice::None);
 
       if (bloomEnabled) {
-#ifndef DISABLE_EASY_PROFILER
-        EASY_BLOCK("Bloom");
-#endif
-
         {
+          profiler.fun("Post process: Bloom");
           bool horizontal = true, firstIteration = true;
           int amount = r_bloomamount.getInt();
           std::shared_ptr<gfx::Material> material =
@@ -273,16 +263,15 @@ class RenderJob : public SchedulerJob {
             horizontal = !horizontal;
             if (firstIteration) firstIteration = false;
             engine->getDevice()->unbindFramebuffer(framebuffer);
+            profiler.end();
           }
         }
-
-#ifndef DISABLE_EASY_PROFILER
-        EASY_END_BLOCK;
-#endif
       }
 
       device->viewport(0, 0, engine->windowResolution.x,
                        engine->windowResolution.y);
+
+      profiler.fun("Post process: Draw");
       engine->renderFullscreenQuad(
           engine->viewport->get(0), NULL, [this](BaseProgram* p) {
             if (r_bloom.getBool())
@@ -304,40 +293,31 @@ class RenderJob : public SchedulerJob {
                 "forced_aspect", DtFloat,
                 BaseProgram::Parameter{.number = (float)engine->forcedAspect});
           });
-#ifndef DISABLE_EASY_PROFILER
-      EASY_END_BLOCK;
-#endif
+      profiler.end();
     } catch (std::exception& e) {
       std::scoped_lock lock(engine->context->getMutex());
       Log::printf(LOG_ERROR, "Error in render: %s", e.what());
     }
 
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Gui");
-#endif
-    engine->gui->render();
-#ifndef DISABLE_EASY_PROFILER
-    EASY_END_BLOCK;
-#endif
+    profiler.fun("GUI render");
 
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("ImGui");
-#endif
+    engine->gui->render();
+
     engine->device->stopImGui();
-#ifndef DISABLE_EASY_PROFILER
-    EASY_END_BLOCK;
-#endif
+
     engine->imguiLock.unlock();
 
     engine->afterGuiRenderStepped.fire();
 
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Swap Buffers");
-#endif
+    profiler.end();
+
+    profiler.fun("Swap buffers");
+
     engine->context->swapBuffers();
-#ifndef DISABLE_EASY_PROFILER
-    EASY_END_BLOCK;
-#endif
+
+    profiler.end();
+
+    profiler.end();
 
     return Stepped;
   }
@@ -349,9 +329,15 @@ Engine::Engine(World* world, void* hwnd) {
   fullscreenSamples = r_samples.getInt();
   maxFbScale = 1.0;
   forcedAspect = 0.0;
-  context.reset(new gl::GLContext(hwnd));
+
+  CVar* r_api = Settings::singleton()->getCvar("r_api");
+  ApiFactory::ApiReg regs =
+      ApiFactory::singleton()->getFunctions(r_api->getValue().c_str());
+
+  context.reset(regs.createContext(hwnd));
   std::scoped_lock lock(context->getMutex());
-  device.reset(new gl::GLDevice(dynamic_cast<gl::GLContext*>(context.get())));
+  device.reset(regs.createDevice(context.get()));
+
   device->engine = this;
   textureCache.reset(new TextureCache(device.get()));
   materialCache.reset(new MaterialCache(device.get()));
@@ -373,6 +359,12 @@ Engine::Engine(World* world, void* hwnd) {
   } else {
     throw std::runtime_error("Could not load PostProcess material!!!");
   }
+
+  currentViewport = NULL;
+
+  unsigned int tx[] = {0xfffffff};
+  whiteTexture = device->createTexture();
+  whiteTexture->upload2d(1, 1, DtUnsignedByte, BaseTexture::RGB, tx);
 
   renderJob = world->getScheduler()->addJob(new RenderJob(this));
   world->stepped.listen([this] { stepped(); });
@@ -455,17 +447,19 @@ void Engine::stepped() {}
 static CVar r_resource_menu("r_resource_menu", "0");
 
 void Engine::render() {
-#ifndef DISABLE_EASY_PROFILER
-  EASY_FUNCTION();
-#endif
-
   imguiLock.lock();
   device->startImGui();
+
+  getRenderJob()->getProfiler().fun("Render");
 
   if (r_resource_menu.getBool())
     getWorld()->getGame()->getResourceManager()->imgui(this);
 
+  ngui->render();
+
   renderStepped.fire();
+
+  getRenderJob()->getProfiler().fun("Render entities");
   for (int i = 0; i < entities.size(); i++) {
     Entity* ent = entities[i].get();
     try {
@@ -474,6 +468,11 @@ void Engine::render() {
       Log::printf(LOG_ERROR, "Error rendering entity %i", i);
     }
   }
+  getRenderJob()->getProfiler().end();
+
+  if (currentViewport) {
+    finishViewport(NULL);
+  }
 
   const char* passName[] = {
       "Opaque",
@@ -481,20 +480,21 @@ void Engine::render() {
       "HUD",
   };
 
-  ngui->render();
-
   for (int i = 0; i < RenderPass::_Max; i++) {
     device->dbgPushGroup(passName[i]);
     switch ((RenderPass::Pass)i) {
       case RenderPass::HUD:
         getDevice()->clearDepth();
+        getDevice()->setDepthState(BaseDevice::Always);
         getDevice()->setBlendState(BaseDevice::SrcAlpha,
                                    BaseDevice::OneMinusSrcAlpha);
         break;
       default:
         break;
     }
+    getRenderJob()->getProfiler().fun(passName[i]);
     passes[i].render(this);
+    getRenderJob()->getProfiler().end();
     device->dbgPopGroup();
   }
 
@@ -514,6 +514,8 @@ void Engine::render() {
 
   device->setDepthState(BaseDevice::LEqual);
   device->setCullState(BaseDevice::FrontCW);
+
+  getRenderJob()->getProfiler().end();
 }
 
 void Engine::initialize() {

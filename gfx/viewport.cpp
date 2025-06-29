@@ -33,8 +33,9 @@ void Viewport::updateBuffers(bool firstTime) {
                         settings.format);
     }
 
-    framebuffer->setTarget(buffer.get(), (BaseFrameBuffer::AttachmentPoint)(
-                                             BaseFrameBuffer::Color0 + i));
+    framebuffer->setTarget(
+        buffer.get(),
+        (BaseFrameBuffer::AttachmentPoint)(BaseFrameBuffer::Color0 + i));
   }
 
   if (firstTime) {
@@ -80,8 +81,22 @@ void Viewport::applyRenderState() {
 
 void* Viewport::bind() {
   camera.updateCamera(glm::vec2(settings.resolution.x, settings.resolution.y));
+  frameCamera = camera;
   return engine->getDevice()->bindFramebuffer(framebuffer.get());
 }
 
 void Viewport::unbind(void* _) { engine->getDevice()->unbindFramebuffer(_); }
+
+glm::vec2 Viewport::project(glm::vec3 _p) {
+  glm::vec4 p = camera.getProjectionMatrix() * camera.getViewMatrix() *
+                glm::vec4(_p, 1.0);
+  p.x /= p.w;
+  p.y /= p.w;
+  p.z /= p.w;
+  p.x = (p.x + 1) * (float)settings.resolution.x * 0.5;
+  p.y = (p.y + 1) * (float)settings.resolution.y * 0.5;
+  if (p.z > 1.f) return glm::vec2(-1);
+  if (p.z < -1.f) return glm::vec2(-1);
+  return glm::vec2(p.x, p.y);
+}
 }  // namespace rdm::gfx

@@ -103,6 +103,8 @@ class DebugDrawer : public btIDebugDraw {
 PhysicsWorld::PhysicsWorld(World* world) {
   world->getScheduler()->addJob(new PhysicsJob(this));
 
+  this->world = world;
+
   debugDrawInit = false;
 
   collisionConfiguration.reset(new btDefaultCollisionConfiguration());

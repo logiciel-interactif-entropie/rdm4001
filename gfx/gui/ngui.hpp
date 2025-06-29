@@ -9,9 +9,12 @@
 #include "gfx/rendercommand.hpp"
 #include "gfx/renderpass.hpp"
 
-namespace rdm::gfx {
+namespace rdm {
+class Game;
+namespace gfx {
 class Engine;
 };
+};  // namespace rdm
 
 namespace rdm::gfx::gui {
 class NGui;
@@ -70,20 +73,33 @@ class NGuiRenderer {
   friend class NGuiManager;
   gfx::Engine* engine;
   NGuiManager* manager;
-  NGuiRenderer(NGuiManager* manager, gfx::Engine* engine);
+  NGuiRenderer(NGuiManager* manager, gfx::Engine* engine, int texNum);
   int texNum;
+  size_t submittedCommands;
 
   RenderList list;
+  int zIndex;
+  RenderCommand* lastCommand;
 
   glm::vec3 color;
 
  public:
   std::pair<int, int> text(glm::ivec2 position, Font* font, int maxWidth,
                            const char* text, ...);
+  void image(gfx::BaseTexture* image, glm::vec2 position, glm::vec2 size);
+
+  // -1 is not hovering,
+  // 0 is hovering,
+  // 1 is click
+  int mouseDownZone(glm::vec2 position, glm::vec2 size);
+  void setZIndex(int index) { zIndex = index; }
+  int getZIndex() { return zIndex; }
 
   void setColor(glm::vec3 color) { this->color = color; };
+  RenderCommand* getLastCommand() { return lastCommand; };
 
   gfx::Engine* getEngine() { return engine; }
+
   RenderList& getList() { return list; }
 };
 
@@ -94,6 +110,9 @@ class NGui {
  public:
   NGui(NGuiManager* gui, gfx::Engine* engine);
   virtual ~NGui() {};
+
+  Game* getGame();
+  gfx::Engine* getEngine();
 
   virtual void render(NGuiRenderer* renderer) = 0;
 };
@@ -109,5 +128,6 @@ class NGuiInstantiator {
   }
 };
 
-#define NGUI_INSTANTIATOR(T) static NGuiInstantiator<T> __NGUI__##T(#T);
+#define NGUI_INSTANTIATOR(T) \
+  static rdm::gfx::gui::NGuiInstantiator<T> __NGUI__##T(#T);
 }  // namespace rdm::gfx::gui

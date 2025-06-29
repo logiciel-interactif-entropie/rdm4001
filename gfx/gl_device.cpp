@@ -2,10 +2,13 @@
 
 #include <glad/glad.h>
 
+#include <format>
 #include <stdexcept>
 
+#include "apis.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
+#include "gl_context.hpp"
 #include "gl_types.hpp"
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/imgui.h"
@@ -123,6 +126,9 @@ void GLDevice::draw(BaseBuffer* base, DataType type, DrawType dtype,
 }
 
 void* GLDevice::bindFramebuffer(BaseFrameBuffer* buffer) {
+  dbgPushGroup(
+      std::format("framebuffer {}", ((GLFrameBuffer*)buffer)->getId()));
+
   void* oldFb = (void*)currentFrameBuffer;
   glBindFramebuffer(GL_FRAMEBUFFER, ((GLFrameBuffer*)buffer)->getId());
   currentFrameBuffer = buffer;
@@ -133,6 +139,8 @@ void GLDevice::unbindFramebuffer(void* p) {
   GLFrameBuffer* oldFb = (GLFrameBuffer*)p;
   glBindFramebuffer(GL_FRAMEBUFFER, oldFb ? oldFb->getId() : 0);
   currentFrameBuffer = oldFb;
+
+  dbgPopGroup();
 }
 
 std::unique_ptr<BaseTexture> GLDevice::createTexture() {

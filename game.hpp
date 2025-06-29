@@ -6,6 +6,7 @@
 #include "console.hpp"
 #include "gfx/engine.hpp"
 #include "resource.hpp"
+#include "security.hpp"
 #include "sound.hpp"
 #include "state.hpp"
 #include "world.hpp"
@@ -20,12 +21,16 @@ class Game {
   std::unique_ptr<SoundManager> soundManager;
   std::unique_ptr<GameState> gameState;
   std::unique_ptr<ResourceManager> resourceManager;
+  std::unique_ptr<SecurityManager> securityManager;
 
  private:
+  std::string iconImg;
+  bool dirtyIcon;
   SDL_Window* window;
   bool ignoreNextMouseMoveEvent;
   bool initialized;
   WorldConstructorSettings worldSettings;
+  void updateIcon();
 
  public:
   Game();
@@ -60,6 +65,11 @@ class Game {
 
   void mainLoop();
 
+  void setIcon(std::string icon) {
+    iconImg = icon;
+    dirtyIcon = true;
+  }
+
   Console* getConsole() { return console.get(); }
 
   World* getWorld() { return world.get(); }
@@ -71,5 +81,6 @@ class Game {
   GameState* getGameState() { return gameState.get(); }
 
   ResourceManager* getResourceManager() { return resourceManager.get(); }
+  SecurityManager* getSecurityManager() { return securityManager.get(); }
 };
 }  // namespace rdm

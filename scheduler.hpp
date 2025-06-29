@@ -5,6 +5,8 @@
 #include <thread>
 #include <vector>
 
+#include "profiler.hpp"
+
 #define SCHEDULER_TIME_SAMPLES 64
 
 namespace rdm {
@@ -41,6 +43,8 @@ struct JobStatistics {
 };
 
 class SchedulerJob {
+  friend class SchedulerGraphGui;
+
   enum State { Running, StopPlease, Stopped };
 
   std::atomic<State> state;
@@ -50,6 +54,8 @@ class SchedulerJob {
 
   JobStatistics stats;
   std::timed_mutex killMutex;
+
+  Profiler profiler;
 
   bool stopOnCancel;
 
@@ -109,6 +115,8 @@ class SchedulerJob {
    */
   JobStatistics& getStats() { return stats; }
 
+  Profiler& getProfiler() { return profiler; }
+
   /**
    * @brief Blocks and waits until a job is stopped.
    *
@@ -127,6 +135,8 @@ class SchedulerJob {
 };
 
 class Scheduler {
+  friend class SchedulerGraphGui;
+
   size_t id;
   std::vector<std::unique_ptr<SchedulerJob>> jobs;
 

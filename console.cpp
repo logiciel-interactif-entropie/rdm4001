@@ -13,6 +13,9 @@
 #include "logging.hpp"
 #include "resource.hpp"
 #include "settings.hpp"
+
+#define CONSOLE_RATIO (179.f / 640.f)
+
 namespace rdm {
 struct ConCommandInfo {
   std::string usage;
@@ -29,7 +32,7 @@ ConsoleData* getCData() {
   return ds;
 }
 
-#define CONSOLE_FONT "dat3/monospace.ttf"
+#define CONSOLE_FONT "engine/gui/monospace.ttf"
 #define CONSOLE_SIZE 18
 
 Console::Console(Game* game) {
@@ -54,7 +57,7 @@ Console::Console(Game* game) {
     game->getWorld()->stepped.listen([this] { tick(); });
 
     bgTexture = game->getResourceManager()->load<resource::Texture>(
-        "dat3/console_bg.png");
+        "engine/gui/console_bg.png");
     textTexture = game->getGfxEngine()->getDevice()->createTexture();
 #ifdef NDEBUG
     visible = false;
@@ -130,9 +133,9 @@ void Console::render() {
   gfx::BaseProgram* bp =
       manager->getImageMaterial()->prepareDevice(engine->getDevice(), 0);
 
-  bp->setParameter(
-      "scale", gfx::DtVec2,
-      gfx::BaseProgram::Parameter{.vec2 = glm::vec2(tres.x, tres.y / 2)});
+  bp->setParameter("scale", gfx::DtVec2,
+                   gfx::BaseProgram::Parameter{
+                       .vec2 = glm::vec2(tres.x, tres.y * CONSOLE_RATIO)});
   bp->setParameter(
       "texture0", gfx::DtSampler,
       gfx::BaseProgram::Parameter{.texture.slot = 0,
@@ -141,7 +144,8 @@ void Console::render() {
                    gfx::BaseProgram::Parameter{.vec3 = glm::vec3(1, 1, 1)});
   bp->setParameter(
       "offset", gfx::DtVec2,
-      gfx::BaseProgram::Parameter{.vec2 = glm::vec2(0, tres.y / 2)});
+      gfx::BaseProgram::Parameter{
+          .vec2 = glm::vec2(0, tres.y - (tres.y * CONSOLE_RATIO))});
   bp->bind();
   manager->getSArrayPointers()->bind();
   engine->getDevice()->draw(manager->getSElementBuf(), gfx::DtUnsignedByte,
@@ -226,7 +230,7 @@ void Console::command(std::string in) {
     if (cvar) {
       std::string rest = r.rest();
       if (rest.empty())
-        Log::printf(LOG_INFO, "= %s", cvar->getValue().c_str());
+        Log::printf(LOG_INFO, "= \"%s\"", cvar->getValue().c_str());
       else
         cvar->setValue(r.rest());
     } else {
@@ -259,6 +263,19 @@ ConsoleCommand::ConsoleCommand(const char* name, const char* usage,
   info.description = description;
   getCData()->consoleCommands[name] = info;
 }
+
+static ConsoleCommand unset("unset", "unset [cvar]", "sets cvar to blank",
+                            [](Game* g, ConsoleArgReader r) {
+                              std::string cvarName = r.next();
+                              CVar* var = Settings::singleton()->getCvar(
+                                  cvarName.c_str());
+                              if (var) {
+                                var->setValue("");
+                              } else {
+                                throw std::runtime_error(
+                                    "No such cvar can be found");
+                              }
+                            });
 
 static ConsoleCommand echo("echo", "echo [text]", "echos text to console log",
                            [](Game* g, ConsoleArgReader r) {

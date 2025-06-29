@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <functional>
+#include <list>
 #include <map>
 #include <memory>
 #include <string>
@@ -40,6 +41,7 @@ struct Peer {
   };
 
   ENetPeer* peer;
+  ENetAddress address;
   int peerId;
   Player* playerEntity;
   Type type;
@@ -61,6 +63,7 @@ typedef std::function<Entity*(NetworkManager*, EntityId)>
 
 class NetworkManager {
   friend class NetworkJob;
+  friend class NetworkGraphGui;
 
   ENetHost* host;
   Peer localPeer;
@@ -93,6 +96,7 @@ class NetworkManager {
   std::vector<std::pair<std::string, std::string>> pendingRconCommands;
 
   std::chrono::time_point<std::chrono::steady_clock> lastTick;
+  std::mutex crazyThingsMutex;
   ClosureId cvarChangingUpdate;
 
  public:
@@ -133,6 +137,8 @@ class NetworkManager {
 
     WelcomePacket = PROTOCOL_VERSION,  // S -> C, beginning of handshake
     AuthenticatePacket,                // C -> S
+
+    __Max,
   };
 
   void service();
@@ -192,6 +198,8 @@ class NetworkManager {
   static void deinitialize();
 
  private:
+  std::mutex packetHistoryMutex;
+  std::list<std::map<PacketId, int>> packetHistory;
   std::unordered_map<CustomEventID, CustomEventSignal> customSignals;
 };
 }  // namespace rdm::network

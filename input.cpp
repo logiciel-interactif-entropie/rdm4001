@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include <csignal>
+#include <thread>
 
 #include "SDL.h"
 #include "SDL_keyboard.h"
@@ -29,8 +30,14 @@ static void intHandler(int) {
   Input::singleton()->postEvent(quit);
 }
 
+extern std::map<std::thread::id, std::string> __threadNames;
+
 static void sigHandler(int) {
-  Log::printf(LOG_FATAL, "Received SIGSEGV");
+  std::string threadName = "Unknown";
+  if (__threadNames.find(std::this_thread::get_id()) != __threadNames.end())
+    threadName = __threadNames[std::this_thread::get_id()];
+
+  Log::printf(LOG_FATAL, "Received SIGSEGV on thread %s", threadName.c_str());
 #ifndef NDEBUG
   bool allowed = false;
   FILE* perm = fopen("/proc/sys/kernel/yama/ptrace_scope", "r");
@@ -114,13 +121,9 @@ void Input::stopEditingText() {
 
 std::string& Input::getEditedText() { return text; }
 
-void Input::beginFrame() {
-  std::scoped_lock lock(flushing);
-  mouseDelta = glm::vec3(0.0);
-}
+void Input::beginFrame() { mouseDelta = glm::vec3(0.0); }
 
 void Input::postEvent(InputObject object) {
-  std::scoped_lock lock(flushing);
   events.push_back(object);
 
   if (events.size() > 1000)
@@ -170,6 +173,7 @@ void Input::flushEvents() {
       case InputObject::MouseMove:
         mousePosition.x = event.data.mouse.position[0];
         mousePosition.y = event.data.mouse.position[1];
+        mousePosition *= Settings::singleton()->getCvar("r_scale")->getFloat();
         mouseDelta.x += ((float)event.data.mouse.delta[0]) / mouseSensitivity;
         mouseDelta.y += ((float)event.data.mouse.delta[1]) / mouseSensitivity;
         break;

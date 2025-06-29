@@ -7,7 +7,6 @@
 #include "json.hpp"
 using json = nlohmann::json;
 
-#include <boost/program_options.hpp>
 #include <format>
 #include <iostream>
 #include <string>
@@ -20,6 +19,7 @@ namespace rdm {
 struct SettingsPrivate {
  public:
   json oldSettings;
+  json oldSettingsPrivate;
 };
 
 Settings::Settings() {
@@ -28,6 +28,7 @@ Settings::Settings() {
 #else
   settingsPath = Fun::getLocalDataDirectory() + "settings_DEBUG.json";
 #endif
+  settingsPrivatePath = Fun::getLocalDataDirectory() + ".private.json";
   p = new SettingsPrivate;
 }
 
@@ -36,6 +37,7 @@ CVar::CVar(const char* name, const char* defaultVar, unsigned long flags) {
   this->flags = flags;
   dirty = true;
   value = defaultVar;
+  this->defaultVar = defaultVar;
   Settings::singleton()->addCvar(name, this);
 }
 
@@ -58,7 +60,11 @@ void CVar::setFloat(float f) { setValue(std::to_string(f)); }
 // taken from
 // https://github.com/floralrainfall/matrix/blob/trunk/matrix/src/mcvar.cpp
 
-bool CVar::getBool() { return value[0] != '0'; }
+bool CVar::getBool() {
+  if (value == "false") return false;
+  if (value == "0") return false;
+  return true;
+}
 
 void CVar::setBool(bool b) { setValue(b ? "1" : "0"); }
 
@@ -92,13 +98,21 @@ Settings* Settings::singleton() {
 
 void Settings::listCvars() {
   for (auto& var : cvars) {
-    Log::printf(LOG_INFO, "%s = %s (%x)", var.first.c_str(),
-                var.second->getValue().c_str(), var.second->getFlags());
+    if (var.second->getFlags() & CVARF_HIDDEN) continue;
+
+    std::string flags;
+    if (var.second->getFlags() & CVARF_GLOBAL) flags += "global ";
+    if (var.second->getFlags() & CVARF_NOTIFY) flags += "notify ";
+    if (var.second->getFlags() & CVARF_REPLICATE) flags += "replicate ";
+    if (var.second->getFlags() & CVARF_SAVE) flags += "save ";
+
+    Log::printf(LOG_INFO, "%s = \"%s\" %s", var.first.c_str(),
+                var.second->getValue().c_str(), flags.c_str());
   }
 }
 
 void Settings::parseCommandLine(char* argv[], int argc) {
-  namespace po = boost::program_options;
+  /*  namespace po = boost::program_options;
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "produce help message")(
       "loadSettings,L", po::value<std::string>(),
@@ -114,11 +128,6 @@ void Settings::parseCommandLine(char* argv[], int argc) {
       "Hint to connect to port (only works on supported programs)");
 
   po::variables_map vm;
-  /*po::store(po::command_line_parser(argc, argv)
-                .options(desc)
-                .allow_unregistered()
-                .run(),
-                vm);*/
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
@@ -148,22 +157,44 @@ void Settings::parseCommandLine(char* argv[], int argc) {
     hintConnectPort = 7938;
   }
 
+  hintDs = vm.count("hintDs");
+  */
+
   load();
 
   for (int i = 0; i < argc; i++) {
     if (argv[i][0] == '+') {
       std::string nam = std::string(argv[i]).substr(1);
       std::string value = argv[++i];
-      Log::printf(LOG_DEBUG, "%s -> %s", nam.c_str(), value.c_str());
-      if (CVar* cvar = getCvar(nam.c_str())) {
+      if (CVar* cvar = getCvar(nam.c_str(), true)) {
         cvar->setValue(value);
       } else {
+        Log::printf(LOG_ERROR, "Unknown cvar %s", nam.c_str());
         throw std::runtime_error("Unknown cvar");
+      }
+    } else if (argv[i][0] == '-') {
+      bool longArg = argv[i][1] == '-';
+      std::string arg = std::string(argv[i]).substr(longArg ? 2 : 1);
+      std::string nam = arg.substr(0, arg.find('='));
+      if ((!longArg && nam == "h") || (longArg && nam == "help")) {
+        Log::printf(LOG_INFO, "Usage");
+        for (auto& [name, var] : consoleArguments) {
+          Log::printf(LOG_INFO, "\t--%s=[%s]", name.c_str(),
+                      var->getDefaultValue().c_str());
+        }
+        Log::printf(LOG_INFO, "\t-h, --help: shows help");
+        exit(0);
+      }
+
+      if (longArg) {
+        if (consoleArguments.find(nam) != consoleArguments.end()) {
+          CVar* var = consoleArguments[nam];
+          std::string value = arg.substr(arg.find('=') + 1);
+          var->setValue(value);
+        }
       }
     }
   }
-
-  hintDs = vm.count("hintDs");
 }
 
 void Settings::load() {
@@ -214,11 +245,44 @@ void Settings::load() {
   } else {
     Log::printf(LOG_ERROR, "Couldn't open %s", settingsPath.c_str());
   }
+
+  FILE* sjp = fopen(settingsPrivatePath.c_str(), "r");
+  if (sjp) {
+    fseek(sj, 0, SEEK_END);
+    int sjl = ftell(sj);
+    fseek(sj, 0, SEEK_SET);
+    char* sjc = (char*)malloc(sjl + 1);
+    memset(sjc, 0, sjl + 1);
+    fread(sjc, 1, sjl, sj);
+    fclose(sj);
+
+    try {
+      json j = json::parse(sjc);
+      json global = j["data"];
+      for (auto& cvar : global.items()) {
+        auto it = cvars.find(cvar.key());
+        if (it != cvars.end()) {
+          CVar* var = cvars[cvar.key()];
+          if (var->getFlags() & CVARF_SAVE && var->getFlags() & CVARF_GLOBAL &&
+              var->getFlags() & CVARF_HIDDEN) {
+            var->setValue(cvar.value());
+          } else {
+            throw std::runtime_error("");
+          }
+        }
+      }
+    } catch (std::exception& e) {
+      Log::printf(LOG_ERROR, "Error parsing settings: %s", e.what());
+    }
+
+    free(sjc);
+  }
 }
 
-std::vector<CVar*> Settings::getWithFlag(unsigned long mask) {
+std::vector<CVar*> Settings::getWithFlag(unsigned long mask, bool allowHidden) {
   std::vector<CVar*> var;
   for (auto cvar : cvars) {
+    if (cvar.second->flags & CVARF_HIDDEN && !allowHidden) continue;
     if (cvar.second->flags & mask) var.push_back(cvar.second);
   }
   return var;
@@ -232,6 +296,10 @@ void Settings::save() {
     json _cvars = {};
     json _cvars2 = {};
     for (auto cvar : cvars) {
+      if (cvar.second->getFlags() & CVARF_HIDDEN &&
+          cvar.second->getFlags() & CVARF_GLOBAL)
+        continue;
+
       if (cvar.second->getFlags() & CVARF_SAVE &&
           cvar.second->getFlags() & CVARF_GLOBAL) {
         _cvars[cvar.first] = cvar.second->getValue();
@@ -244,6 +312,23 @@ void Settings::save() {
     std::string d = j.dump(1);
     fwrite(d.data(), 1, d.size(), sj);
     fclose(sj);
+  }
+
+  FILE* sjp = fopen(settingsPrivatePath.c_str(), "w");
+  if (sjp) {
+    json j;
+    j["warning"] =
+        "DO not share this. Or edit this. Bad things will happen if you do";
+    for (auto cvar : cvars) {
+      if (cvar.second->getFlags() & CVARF_HIDDEN &&
+          cvar.second->getFlags() & CVARF_GLOBAL &&
+          cvar.second->getFlags() & CVARF_SAVE) {
+        j["data"][cvar.second->getName()] = cvar.second->getValue();
+      }
+    }
+    std::string d = j.dump(1);
+    fwrite(d.data(), 1, d.size(), sjp);
+    fclose(sjp);
   }
 }
 }  // namespace rdm

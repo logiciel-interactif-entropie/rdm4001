@@ -1,9 +1,0 @@
-<gui name="MainMenu">
-  <component src="dat5/gui/buttons.xml"></component>
-  <component src="dat5/gui/online_play.xml"></component>
-  <dom>
-    <image src="dat5/logo2.png"></image>
-    <label font="dat3/serif.ttf" color="black">Welcome to the world of ryelow deathmatch</label>
-    <label font="dat3/serif.ttf" ptsize="9" color="black">© logiciel interactif entropie 2024-2025, RDM4001 is licensed under the GNU GPLv3</label>
-  </dom>
-</gui>

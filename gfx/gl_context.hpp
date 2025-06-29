@@ -19,6 +19,8 @@ class GLContext : public BaseContext {
   virtual void swapBuffers();
   virtual glm::ivec2 getBufferSize();
 
+  static int prepareSdl();
+
   SDL_GLContext getContext() { return context; }
 };
 };  // namespace rdm::gfx::gl

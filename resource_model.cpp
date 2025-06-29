@@ -172,6 +172,9 @@ void Model::gfxUpload(gfx::Engine* engine) {
           aiVertexWeight weight = bone->mWeights[j];
           int vertex = weight.mVertexId;
           float value = weight.mWeight;
+
+          if (value == 0.0) continue;
+
           for (int z = 0; z < MODEL_MAX_WEIGHTS; z++) {
             if (vertices[vertex].boneIds[z] < 0) {
               vertices[vertex].boneIds[z] = boneId;
@@ -459,9 +462,17 @@ void Model::calcAnimatorTransforms(aiNode* node, Animator* anim,
 }
 
 void Model::Animator::upload(gfx::BaseProgram* program) {
-  for (int i = 0; i < MODEL_MAX_BONE_TRANSFORMS; i++)
-    program->setParameter(std::format("boneTransform[{}]", i), gfx::DtMat4,
-                          {.matrix4x4 = boneMatrices[i]});
+  if (boneUniformBuffer) {
+    boneUniformBuffer->uploadSub(0, sizeof(boneMatrices), boneMatrices);
+    program->setParameter(
+        "BoneTransformBlock", gfx::DtBuffer,
+        {.buffer.buffer = boneUniformBuffer.get(), .buffer.slot = 0});
+  } else {
+    throw std::runtime_error("Call Animator::initBuffer");
+    /*for (int i = 0; i < MODEL_MAX_BONE_TRANSFORMS; i++)
+      program->setParameter(std::format("boneTransform[{}]", i), gfx::DtMat4,
+      {.matrix4x4 = boneMatrices[i]});*/
+  }
   program->bind();
 }
 

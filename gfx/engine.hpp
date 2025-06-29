@@ -74,6 +74,8 @@ class Engine {
   std::unique_ptr<BaseFrameBuffer> pingpongFramebuffer[2];
   std::unique_ptr<BaseTexture> pingpongTexture[2];
 
+  std::unique_ptr<BaseTexture> whiteTexture;
+
   int fullscreenSamples;
 
   float time;
@@ -106,6 +108,8 @@ class Engine {
 
  public:
   Engine(World* world, void* hwnd);
+
+  BaseTexture* getWhiteTexture() { return whiteTexture.get(); }
 
   std::mutex& getImguiLock() { return imguiLock; }
 

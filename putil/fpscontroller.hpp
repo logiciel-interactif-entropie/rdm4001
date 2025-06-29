@@ -11,6 +11,7 @@ struct FpsControllerSettings {
   float maxAccel;
   float stopSpeed;
   float friction;
+  float jumpImpulse;
   bool enabled;
 
   FpsControllerSettings();  // default settings, good for bsp maps
@@ -36,6 +37,9 @@ class FpsController {
   glm::vec3 networkPosition;
   bool grounded;
   bool jumping;
+  bool simulateMovement;
+
+  bool transformDirty, rotationDirty, velocityDirty;
 
   std::mutex m;
 
@@ -49,6 +53,12 @@ class FpsController {
 
  public:
   enum Animation { Idle, Walk, Run, Jump, Fall };
+
+  void setTransformDirty() {
+    transformDirty = true;
+    velocityDirty = true;
+  }
+  void setRotationDirty() { rotationDirty = true; }
 
   FpsController(PhysicsWorld* world,
                 FpsControllerSettings settings = FpsControllerSettings());
@@ -67,6 +77,7 @@ class FpsController {
   void teleport(glm::vec3 p);
 
   glm::vec3 getNetworkPosition() { return networkPosition; }
+  glm::vec3 getCameraOrigin();
   glm::vec2 getWishDir() { return accel; }
 
   btVector3 getFront() { return front; }
@@ -77,6 +88,8 @@ class FpsController {
   btRigidBody* getRigidBody() const { return rigidBody.get(); };
   btMotionState* getMotionState() const { return motionState; };
   FpsControllerSettings& getSettings() { return settings; }
+
+  void setSimulate(bool v) { simulateMovement = v; }
 
   Animation getAnimation() const { return anim; }
 

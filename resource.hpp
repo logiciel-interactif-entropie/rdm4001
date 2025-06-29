@@ -13,6 +13,7 @@
 #include "gfx/engine.hpp"
 #include "gfx/material.hpp"
 #include "gfx/mesh.hpp"
+#include "gfx/rendercommand.hpp"
 #include "gfx/viewport.hpp"
 namespace rdm {
 namespace gfx {
@@ -23,6 +24,8 @@ class ResourceManager;
 namespace resource {
 class Texture;
 }
+
+#define RESOURCE_MISSING_TEXTURE "engine/assets/missingtexture.png"
 
 class BaseResource {
   std::string name;
@@ -227,9 +230,18 @@ class Model : public BaseGfxResource {
     Animation* animation;
     double currentTime;
     double speed;
+    std::unique_ptr<gfx::BaseBuffer> boneUniformBuffer;
     glm::mat4 boneMatrices[MODEL_MAX_BONE_TRANSFORMS];
 
     Animator() { reset(); }
+
+    void initBuffer(gfx::BaseDevice* device) {
+      if (boneUniformBuffer) return;
+      boneUniformBuffer = device->createBuffer();
+      boneUniformBuffer->upload(gfx::BaseBuffer::Uniform,
+                                gfx::BaseBuffer::DynamicDraw,
+                                sizeof(boneMatrices), boneMatrices);
+    }
 
     void reset() {
       animation = NULL;

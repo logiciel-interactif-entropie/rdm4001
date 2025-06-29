@@ -27,6 +27,7 @@ class RenderCommand {
   std::optional<glm::vec3> color;
   size_t count;
   void* first;
+  void* user;
 
  public:
   RenderCommand(gfx::BaseDevice::DrawType type, gfx::BaseBuffer* elements,
@@ -40,11 +41,13 @@ class RenderCommand {
   void setScale(std::optional<glm::vec2> scale) { this->scale = scale; }
   void setOffset(std::optional<glm::vec2> offset) { this->offset = offset; }
   void setColor(std::optional<glm::vec3> color) { this->color = color; }
+  void setUser(void* v) { user = v; };
   gfx::BaseTexture* getTexture(int id) const { return texture[id]; }
   std::optional<glm::mat4> getModel() const { return model; };
   std::optional<glm::vec2> getScale() const { return scale; };
   std::optional<glm::vec2> getOffset() const { return offset; };
   std::optional<glm::vec3> getColor() const { return color; }
+  void* getUser() const { return user; }
 
   DirtyFields render(gfx::Engine* engine);
 };
@@ -63,6 +66,7 @@ struct RenderListSettings {
 class RenderList {
   gfx::BaseProgram* program;
   gfx::BaseArrayPointers* pointers;
+  void* user;
 
   std::vector<RenderCommand> commands;
   RenderListSettings settings;
@@ -71,9 +75,12 @@ class RenderList {
   RenderList(gfx::BaseProgram* program, gfx::BaseArrayPointers* pointers,
              RenderListSettings settings = RenderListSettings());
 
-  gfx::BaseProgram* getProgram() { return program; }
+  void setUser(void* user) { this->user = user; }
+  void* getUser() const { return user; }
+
+  gfx::BaseProgram* getProgram() const { return program; }
   void clear() { commands.clear(); }
-  void add(RenderCommand& command);
+  RenderCommand* add(RenderCommand& command);
   void render(gfx::Engine* engine);
 
   template <typename T>

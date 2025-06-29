@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "base_types.hpp"
 #include "camera.hpp"
 #include "engine.hpp"
 #include "filesystem.hpp"
@@ -76,7 +77,7 @@ void Material::addTechnique(std::shared_ptr<Technique> qu) {
 BaseProgram* Material::prepareDevice(BaseDevice* device, int techniqueId) {
   if (techniques.size() <= techniqueId) return NULL;
   Engine* engine = device->getEngine();
-  Camera camera = engine->getCurrentViewport()->getCamera();
+  Camera camera = engine->getCurrentViewport()->getFrameCamera();
   BaseProgram* program = techniques[techniqueId]->getProgram();
   BaseProgram::Parameter p;
   p.matrix4x4 = camera.getProjectionMatrix();
@@ -91,6 +92,9 @@ BaseProgram* Material::prepareDevice(BaseDevice* device, int techniqueId) {
   program->setParameter("camera_position", DtVec3, p);
   p.vec3 = camera.getTarget();
   program->setParameter("camera_target", DtVec3, p);
+  p.texture.texture = engine->getWhiteTexture();
+  p.texture.slot = 0;
+  program->setParameter("white_texture", DtSampler, p);
   techniques[techniqueId]->bindProgram();
   return program;
 }
@@ -102,9 +106,18 @@ std::shared_ptr<Material> Material::create() {
 MaterialCache::MaterialCache(BaseDevice* device) {
   this->device = device;
   std::vector<unsigned char> materialJsonString =
-      common::FileSystem::singleton()->readFile("dat1/materials.json").value();
-  materialData =
-      std::string(materialJsonString.begin(), materialJsonString.end());
+      common::FileSystem::singleton()
+          ->readFile("engine/materials/materials.json")
+          .value();
+  materialDatas.push_front(
+      std::string(materialJsonString.begin(), materialJsonString.end()));
+}
+
+void MaterialCache::addDataFile(const char* path) {
+  std::vector<unsigned char> materialJsonString =
+      common::FileSystem::singleton()->readFile(path).value();
+  materialDatas.push_front(
+      std::string(materialJsonString.begin(), materialJsonString.end()));
 }
 
 std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
@@ -115,49 +128,50 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
   } else {
     std::shared_ptr<Material> material = Material::create();
     try {
-      json data = json::parse(materialData);
-      json materialInfo = data["Materials"][materialName];
-      if (materialInfo.is_null()) {
-        Log::printf(LOG_ERROR, "Could not find material %s", materialName);
-        return {};
-      }
-      json materialRequirements = data["Materials"][materialName];
-      if (!materialRequirements.is_null()) {
-        if (materialRequirements["PostProcess"].is_boolean()) {
-          if (materialRequirements["PostProcess"]) {
-          }
-        }
-      }
-      json techniques = materialInfo["Techniques"];
-      int techniqueId = 0;
-      for (const json& item : techniques) {
-        std::string programName = item["ProgramName"];
-        json program = data["Programs"][programName];
-        try {
-          if (program.is_null()) {
-            Log::printf(LOG_ERROR, "Could not find program for technique %i",
-                        techniqueId);
-            continue;
-          }
-          std::string vsName = program["VSName"];
-          std::string fsName = program["FSName"];
-          std::string gsName = "";
-          if (program.find("GSName") != program.end())
-            gsName = program["GSName"];
-          material->addTechnique(
-              Technique::create(device, vsName, fsName, gsName));
-        } catch (std::runtime_error& e) {
-          Log::printf(
-              LOG_ERROR,
-              "Couldn't compile Technique %i for material %s what() = %s",
-              techniqueId, materialName, e.what());
+      for (auto materialData : materialDatas) {
+        json data = json::parse(materialData);
+        json materialInfo = data["Materials"][materialName];
+        if (materialInfo.is_null()) {
           continue;
         }
-        techniqueId++;
+        json materialRequirements = data["Materials"][materialName];
+        if (!materialRequirements.is_null()) {
+          if (materialRequirements["PostProcess"].is_boolean()) {
+            if (materialRequirements["PostProcess"]) {
+            }
+          }
+        }
+        json techniques = materialInfo["Techniques"];
+        int techniqueId = 0;
+        for (const json& item : techniques) {
+          std::string programName = item["ProgramName"];
+          json program = data["Programs"][programName];
+          try {
+            if (program.is_null()) {
+              Log::printf(LOG_ERROR, "Could not find program for technique %i",
+                          techniqueId);
+              continue;
+            }
+            std::string vsName = program["VSName"];
+            std::string fsName = program["FSName"];
+            std::string gsName = "";
+            if (program.find("GSName") != program.end())
+              gsName = program["GSName"];
+            material->addTechnique(
+                Technique::create(device, vsName, fsName, gsName));
+          } catch (std::runtime_error& e) {
+            Log::printf(
+                LOG_ERROR,
+                "Couldn't compile Technique %i for material %s what() = %s",
+                techniqueId, materialName, e.what());
+            continue;
+          }
+          techniqueId++;
+        }
+        Log::printf(LOG_DEBUG, "Cached new material %s", materialName);
+        cache[materialName] = material;
+        return material;
       }
-      Log::printf(LOG_DEBUG, "Cached new material %s", materialName);
-      cache[materialName] = material;
-      return material;
     } catch (std::runtime_error& e) {
       Log::printf(LOG_ERROR,
                   "Fucked up MaterialCache::getOrLoad sorry  for making it "

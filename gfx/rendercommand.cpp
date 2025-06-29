@@ -18,6 +18,7 @@ RenderCommand::RenderCommand(gfx::BaseDevice::DrawType type,
   this->elements = elements;
   this->count = count;
   this->first = first;
+  this->user = NULL;
   for (int i = 0; i < NR_MAX_TEXTURES; i++) texture[i] = NULL;
 }
 
@@ -43,14 +44,20 @@ RenderList::RenderList(gfx::BaseProgram* program,
   this->settings = settings;
 }
 
-void RenderList::add(RenderCommand& command) { commands.push_back(command); }
+RenderCommand* RenderList::add(RenderCommand& command) {
+  commands.push_back(command);
+  return &commands.back();
+}
 
 void RenderList::render(gfx::Engine* engine) {
   engine->getDevice()->setCullState(settings.cull);
   engine->getDevice()->setDepthState(settings.state);
+
   if (program) program->bind();
   if (pointers) pointers->bind();
   BaseTexture* oldTextures[NR_MAX_TEXTURES] = {0};
+
+  memset(oldTextures, 0, sizeof(oldTextures));
   glm::mat4 lastModel = glm::identity<glm::mat4>();
   glm::vec3 lastColor = glm::vec3(-1.f);
   for (int i = 0; i < commands.size(); i++) {

@@ -54,6 +54,7 @@ std::string Fun::getLocalDataDirectory() {
       Log::printf(LOG_FATAL, "creating data dir error %s", strerror(errno));
       throw std::runtime_error("getLocalDataDirectory");
     }
+    mkdir((path + "hosts").c_str(), 0700);
   } else {
     Log::printf(LOG_FATAL, "opening data dir error %s", strerror(errno));
     throw std::runtime_error("getLocalDataDirectory");

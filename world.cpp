@@ -43,7 +43,7 @@ class WorldTitleJob : public SchedulerJob {
     oldTitle = "";
   }
 
-  virtual double getFrameRate() { return 1.0 / 60.0; }
+  virtual double getFrameRate() { return 1.0 / 20.0; }
 
   virtual Result step() {
     std::string title = world->title;
@@ -101,7 +101,8 @@ World::World(WorldConstructorSettings settings) {
 }
 
 World::~World() {
-  Log::printf(LOG_DEBUG, "Dtor on world, running = %s",
+  Log::printf(LOG_DEBUG,
+              "Dtor on world, running = %s. We hope to see you soon.",
               running ? "true" : "false");
   setRunning(false);
   getScheduler()->waitToWrapUp();

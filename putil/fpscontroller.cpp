@@ -13,6 +13,7 @@
 #include "input.hpp"
 #include "logging.hpp"
 #include "physics.hpp"
+#include "world.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/quaternion.hpp>
@@ -31,6 +32,7 @@ FpsControllerSettings::FpsControllerSettings() {
   capsuleMass = 1.f;
   maxSpeed = 260.f;
   maxAccel = 20.f;
+  jumpImpulse = 50.f;
   friction = 4.0f;
   stopSpeed = 40.f;
 }
@@ -41,6 +43,8 @@ FpsController::FpsController(PhysicsWorld* world,
   this->settings = settings;
   btCapsuleShape* shape =
       new btCapsuleShapeZ(settings.capsuleRadius, settings.capsuleHeight);
+
+  simulateMovement = false;
 
   btTransform transform = btTransform::getIdentity();
   transform.setOrigin(btVector3(-30.0, 30.0, 200.0));
@@ -67,6 +71,10 @@ FpsController::FpsController(PhysicsWorld* world,
   localPlayer = true;
   enable = true;
 
+  rotationDirty = true;
+  transformDirty = true;
+  velocityDirty = true;
+
   moveVel = glm::vec2(0.0);
 
   rigidBody->setAngularFactor(btVector3(0, 0, 1));
@@ -90,11 +98,19 @@ void FpsController::imguiDebug() {
               rigidBody->getLinearVelocity().z());
   ImGui::Text("Enable: %s", enable ? "true" : "false");
   ImGui::Text("Local Player: %s", localPlayer ? "true" : "false");
+  ImGui::SliderFloat("Max Accel", &settings.maxAccel, 0.f, 100.f);
+  ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 0.f, 1000.f);
+  ImGui::SliderFloat("Friction", &settings.friction, 0.f, 100.f);
+  ImGui::SliderFloat("Stop Speed", &settings.stopSpeed, 0.f, 100.f);
+  ImGui::SliderFloat("Jump Impulse", &settings.jumpImpulse, 0.f, 200.f);
   ImGui::End();
 }
 
 void FpsController::teleport(glm::vec3 p) {
   std::scoped_lock l(m);
+
+  transformDirty = true;
+  velocityDirty = true;
 
   networkPosition = p;
   btTransform& transform = rigidBody->getWorldTransform();
@@ -110,7 +126,7 @@ void FpsController::moveGround(btVector3& vel, glm::vec2 wishdir) {
   float newspeed = speed - PHYSICS_FRAMERATE * settings.friction * control;
 
   if (Input::singleton()->isKeyDown(' ')) {
-    vel += btVector3(0, 0, 50);
+    vel += btVector3(0, 0, settings.jumpImpulse);
     jumping = true;
     return;
   }
@@ -138,12 +154,18 @@ void FpsController::moveAir(btVector3& vel, glm::vec2 wishdir) {
   vel += accelSpeed * btVector3(wishdir.x, wishdir.y, 0.0);
 }
 
+glm::vec3 FpsController::getCameraOrigin() {
+  btTransform transform;
+  motionState->getWorldTransform(transform);
+  return BulletHelpers::fromVector3(transform.getOrigin()) +
+         glm::vec3(0, 0, 17);
+}
+
 void FpsController::updateCamera(gfx::Camera& camera) {
   btTransform transform;
   motionState->getWorldTransform(transform);
 
-  glm::vec3 origin =
-      BulletHelpers::fromVector3(transform.getOrigin()) + glm::vec3(0, 0, 17);
+  glm::vec3 origin = getCameraOrigin();
 
   if (localPlayer) {
     glm::vec2 mouseDelta = Input::singleton()->getMouseDelta();
@@ -205,6 +227,8 @@ void FpsController::physicsStep() {
     anim = Fall;
   }
 
+  detectGrounded();
+
   if (localPlayer) {
 #ifndef DISABLE_EASY_PROFILER
     EASY_BLOCK("Local Player Calculation");
@@ -240,80 +264,152 @@ void FpsController::physicsStep() {
       }*/
 
     transform.setBasis(BulletHelpers::toMat3(moveView));
-  }
+  } else {
+    if (!world->getRWorld()->getNetworkManager()->isBackend()) {
+      btTransform& bodyTransform = rigidBody->getWorldTransform();
+      float dist =
+          glm::distance(BulletHelpers::fromVector3(bodyTransform.getOrigin()),
+                        networkPosition);
+      Log::printf(LOG_DEBUG, "Prediction diff: %f, accept: %f", dist,
+                  rigidBody->getLinearVelocity().length());
+      if (dist > rigidBody->getLinearVelocity().length()) {
+        bodyTransform.setOrigin(BulletHelpers::toVector3(networkPosition));
+        rigidBody->setWorldTransform(bodyTransform);
+      }
+    } else {
+      btVector3 linvel = rigidBody->getLinearVelocity();
+      if (simulateMovement) {
+        glm::vec2 wishdir = glm::vec2(0.0);
 
-  detectGrounded();
+        grounded ? moveGround(vel, wishdir) : moveAir(vel, wishdir);
+      }
+      Log::printf(LOG_DEBUG, "%f %f %f", linvel.x(), linvel.y(), linvel.z());
+    }
+  }
 }
 
+#define PFLAG_ORIGIN (1 << 1)
+#define PFLAG_ROTATION (1 << 2)
+#define PFLAG_VELOCITY (1 << 3)
+
 void FpsController::serialize(network::BitStream& stream) {
+  bool writeTransform, writeVelocity, writeRotation;
+  if (stream.getContext() == network::BitStream::ToNewClient) {
+    writeTransform = true;
+    writeRotation = true;
+    writeVelocity = true;
+  } else {
+    writeTransform = transformDirty;
+    transformDirty = false;
+    writeRotation = rotationDirty;
+    rotationDirty = false;
+    writeVelocity = velocityDirty;
+    velocityDirty = false;
+  }
+
+  stream.write<char>((writeTransform ? PFLAG_ORIGIN : 0) |
+                     (writeRotation ? PFLAG_ROTATION : 0) |
+                     (writeVelocity ? PFLAG_VELOCITY : 0));
+
   btTransform transform;
   getMotionState()->getWorldTransform(transform);
   btVector3FloatData vectorData;
-  transform.getOrigin().serialize(vectorData);
-  stream.write<btVector3FloatData>(vectorData);
+  if (writeTransform) {
+    transform.getOrigin().serialize(vectorData);
+    stream.write<btVector3FloatData>(vectorData);
+  }
 
-  btMatrix3x3FloatData matrixData;
-  transform.getBasis().serialize(matrixData);
-  stream.write<btMatrix3x3FloatData>(matrixData);
-  rigidBody->getLinearVelocity().serialize(vectorData);
-  stream.write<btVector3FloatData>(vectorData);
+  if (writeVelocity) {
+    rigidBody->getLinearVelocity().serialize(vectorData);
+    stream.write<btVector3FloatData>(vectorData);
+  }
 
-  stream.write<float>(cameraYaw);
-  stream.write<float>(cameraPitch);
+  if (writeRotation) {
+    btMatrix3x3FloatData matrixData;
+    transform.getBasis().serialize(matrixData);
+    stream.write<btMatrix3x3FloatData>(matrixData);
+
+    stream.write<float>(cameraYaw);
+    stream.write<float>(cameraPitch);
+  }
 }
 
 void FpsController::deserialize(network::BitStream& stream, bool backend) {
-  btVector3 origin;
-  origin.deSerialize(stream.read<btVector3FloatData>());
+  char flags = stream.read<char>();
 
-  btMatrix3x3 basis;
-  basis.deSerialize(stream.read<btMatrix3x3FloatData>());
+  btVector3 origin;
+  if (flags & PFLAG_VELOCITY)
+    origin.deSerialize(stream.read<btVector3FloatData>());
 
   btVector3 velocity;
-  velocity.deSerialize(stream.read<btVector3FloatData>());
+  if (flags & PFLAG_VELOCITY)
+    velocity.deSerialize(stream.read<btVector3FloatData>());
 
-  float cameraYaw = stream.read<float>();
-  float cameraPitch = stream.read<float>();
+  btMatrix3x3 basis;
+  float cameraYaw, cameraPitch;
+  if (flags & PFLAG_ROTATION) {
+    basis.deSerialize(stream.read<btMatrix3x3FloatData>());
+    cameraYaw = stream.read<float>();
+    cameraPitch = stream.read<float>();
+  }
 
   if (backend) {
-    btTransform& bodyTransform = rigidBody->getWorldTransform();
-    float dist =
-        glm::distance(BulletHelpers::fromVector3(bodyTransform.getOrigin()),
-                      BulletHelpers::fromVector3(origin));
-    // Log::printf(LOG_DEBUG, "Prediction diff: %f", dist);
-    if (dist > velocity.length() * 2.f) {
-      Log::printf(LOG_DEBUG, "Resetting position");
-      networkPosition = BulletHelpers::fromVector3(bodyTransform.getOrigin());
+    transformDirty = flags & PFLAG_ORIGIN;
+    rotationDirty = flags & PFLAG_ROTATION;
+    velocityDirty = flags & PFLAG_VELOCITY;
+  }
+
+  if (flags & PFLAG_ORIGIN)
+    if (backend) {
+      btTransform& bodyTransform = rigidBody->getWorldTransform();
+      float dist =
+          glm::distance(BulletHelpers::fromVector3(bodyTransform.getOrigin()),
+                        BulletHelpers::fromVector3(origin));
+      // Log::printf(LOG_DEBUG, "Prediction diff: %f", dist);
+      if (dist > velocity.length() * 2.f) {
+        Log::printf(LOG_DEBUG, "Resetting position");
+        networkPosition = BulletHelpers::fromVector3(bodyTransform.getOrigin());
+      } else {
+        networkPosition = BulletHelpers::fromVector3(origin);
+      }
     } else {
       networkPosition = BulletHelpers::fromVector3(origin);
     }
-  } else {
-    networkPosition = BulletHelpers::fromVector3(origin);
-  }
 
   if (!localPlayer) {
     btTransform& bodyTransform = rigidBody->getWorldTransform();
-    bodyTransform.setOrigin(BulletHelpers::toVector3(networkPosition));
-    bodyTransform.setBasis(basis);
 
-    rigidBody->setLinearVelocity(velocity);
-    rigidBody->setAngularVelocity(btVector3(0.0, 0.0, 0.0));
-    if (enable) rigidBody->activate(true);
+    if (flags & PFLAG_ORIGIN)
+      bodyTransform.setOrigin(BulletHelpers::toVector3(networkPosition));
+    if (flags & PFLAG_ROTATION) bodyTransform.setBasis(basis);
+
+    if (flags & PFLAG_VELOCITY) {
+      rigidBody->setLinearVelocity(velocity);
+      rigidBody->setAngularVelocity(btVector3(0.0, 0.0, 0.0));
+      if (enable) rigidBody->activate(true);
+    }
+
     rigidBody->setWorldTransform(bodyTransform);
 
-    glm::quat yawQuat = glm::angleAxis(cameraYaw, glm::vec3(0.f, 1.f, 0.f));
-    glm::quat pitchQuat = glm::angleAxis(cameraPitch, glm::vec3(0.f, 0.f, 1.f));
-    glm::mat3 frontMat3 = glm::toMat3(pitchQuat * yawQuat);
-    glm::vec3 front = frontMat3 * glm::vec3(FPS_CONTROLLER_FRONT);
+    if (flags & PFLAG_ROTATION) {
+      glm::quat yawQuat = glm::angleAxis(cameraYaw, glm::vec3(0.f, 1.f, 0.f));
+      glm::quat pitchQuat =
+          glm::angleAxis(cameraPitch, glm::vec3(0.f, 0.f, 1.f));
+      glm::mat3 frontMat3 = glm::toMat3(pitchQuat * yawQuat);
+      glm::vec3 front = frontMat3 * glm::vec3(FPS_CONTROLLER_FRONT);
 
-    this->cameraYaw = cameraYaw;
-    this->cameraPitch = cameraPitch;
-    this->front = BulletHelpers::toVector3(front);
+      this->cameraYaw = cameraYaw;
+      this->cameraPitch = cameraPitch;
+      this->front = BulletHelpers::toVector3(front);
+    }
   } else {
     btTransform& ourTransform = rigidBody->getWorldTransform();
-    float dist = glm::distance(
-        networkPosition, BulletHelpers::fromVector3(ourTransform.getOrigin()));
-    if (dist > velocity.length() * 2.f) ourTransform.setOrigin(origin);
+    if (flags & PFLAG_ORIGIN && flags & PFLAG_VELOCITY) {
+      float dist =
+          glm::distance(networkPosition,
+                        BulletHelpers::fromVector3(ourTransform.getOrigin()));
+      if (dist > velocity.length() * 2.f) ourTransform.setOrigin(origin);
+    }
   }
 }
 

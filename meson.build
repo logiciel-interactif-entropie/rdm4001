@@ -10,6 +10,7 @@ if get_option('buildtype').startswith('release')
    add_project_arguments('-Ofast', language:['cpp'])
 endif
 
+libtomcrypt = dependency('libtomcrypt', version: '>=1.18.2')
 sdl2 = dependency('sdl2')
 sdl2_ttf = dependency('sdl2_ttf')
 glm = dependency('glm')
@@ -20,8 +21,7 @@ easy_profiler = dependency('easy_profiler')
 bullet = dependency('Bullet')
 libsndfile = dependency('sndfile')
 curl = dependency('libcurl')
-boost_dep = dependency('boost', modules: ['program_options'])
-readline = dependency('readline')
+readline = dependency('libeditline')
 
 common_proj = subproject('common')
 common_dep = common_proj.get_variable('libcommon_dep')
@@ -37,12 +37,45 @@ endif
 options = ['-DDISABLE_EASY_PROFILER']
 #options = []
 
-glad_proj = subproject('glad')
-glad_dep = glad_proj.get_variable('libglad_dep')
 
 inc = include_directories(['.', 'gfx/imgui', '/usr/include/bullet', 'subprojects/common'])
 
-gamelib = static_library('game', [
+game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, easy_profiler, curl, readline, libtomcrypt]
+
+xtra_src = []
+
+if get_option('graphics').enabled()
+  vulkan = dependency('vulkan', required: get_option('vulkan'))
+  if vulkan.found() and false
+    game_deps += [vulkan]
+    xtra_src += [
+      'gfx/vk_context.cpp',
+      'gfx/vk_context.hpp',
+      'gfx/vk_device.cpp',
+      'gfx/vk_device.hpp',
+      'gfx/vk_types.cpp',
+      'gfx/vk_types.hpp'
+    ]
+    add_project_arguments('-DRDM4001_FEATURE_VULKAN', language: ['cpp'])
+  endif
+
+  if get_option('openglmodern').enabled()
+    glad_proj = subproject('glad')
+    glad_dep = glad_proj.get_variable('libglad_dep')
+    game_deps += [glad_dep]
+    xtra_src += [
+      'gfx/gl_context.cpp',
+      'gfx/gl_context.hpp',
+      'gfx/gl_device.cpp',
+      'gfx/gl_device.hpp',
+      'gfx/gl_types.cpp',
+      'gfx/gl_types.hpp',
+    ]
+    add_project_arguments('-DRDM4001_FEATURE_GLMODERN', language: ['cpp'])
+  endif
+endif
+
+gamelib = static_library('game', [ 
   'console.cpp',
   'console.hpp',
   'game.cpp',
@@ -57,6 +90,8 @@ gamelib = static_library('game', [
   'input.hpp',
   'scheduler.cpp',
   'scheduler.hpp',
+  'security.cpp',
+  'security.hpp',
   'settings.cpp',
   'settings.hpp',
   'signal.cpp',
@@ -67,6 +102,8 @@ gamelib = static_library('game', [
   'sound.hpp',
   'physics.cpp',
   'physics.hpp',
+  'profiler.cpp',
+  'profiler.hpp',
   'resource.cpp',
   'resource_model.cpp',
   'resource_texture.cpp',
@@ -95,12 +132,21 @@ gamelib = static_library('game', [
   'network/player.cpp',
   'network/player.hpp',
 
+  'gfx/base_context.cpp',
+  'gfx/base_context.hpp',
+  'gfx/base_device.cpp',
+  'gfx/base_device.hpp',
+  'gfx/base_types.cpp',
+  'gfx/base_types.hpp',
+
   'gfx/gui/api.cpp',
   'gfx/gui/api.hpp',
   'gfx/gui/gui.cpp',
   'gfx/gui/gui.hpp',
   'gfx/gui/ngui.cpp',
   'gfx/gui/ngui.hpp',
+  'gfx/gui/ngui_window.cpp',
+  'gfx/gui/ngui_window.hpp',
   'gfx/gui/font.cpp',
   'gfx/gui/font.hpp',
 
@@ -117,6 +163,8 @@ gamelib = static_library('game', [
   'gfx/imgui/backends/imgui_impl_opengl3.cpp',
   'gfx/imgui/backends/imgui_impl_sdl2.cpp',
 
+  'gfx/apis.cpp',
+  'gfx/apis.hpp',
   'gfx/camera.cpp',
   'gfx/camera.hpp',
   'gfx/engine.cpp',
@@ -139,20 +187,8 @@ gamelib = static_library('game', [
   'gfx/viewport.hpp',
   'gfx/stb_image.h',
 
-  'gfx/base_context.cpp',
-  'gfx/base_context.hpp',
-  'gfx/base_device.cpp',
-  'gfx/base_device.hpp',
-  'gfx/base_types.cpp',
-  'gfx/base_types.hpp',
-
-  'gfx/gl_context.cpp',
-  'gfx/gl_context.hpp',
-  'gfx/gl_device.cpp',
-  'gfx/gl_device.hpp',
-  'gfx/gl_types.cpp',
-  'gfx/gl_types.hpp',
-], cpp_args: options + obz_options, include_directories: [inc], dependencies: [libsndfile, boost_dep, enet, common_dep, glad_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, easy_profiler, curl, readline])
+  xtra_src
+], cpp_args: options + obz_options, include_directories: [inc], dependencies: game_deps)
 
 rdm4001_dep = declare_dependency(include_directories: inc,
 				 link_with: gamelib)

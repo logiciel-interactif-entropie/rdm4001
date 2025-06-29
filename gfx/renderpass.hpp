@@ -16,5 +16,12 @@ class RenderPass {
 
   void add(RenderList list);
   void render(gfx::Engine* engine);
+
+  size_t numLists() { return lists.size(); }
+
+  template <typename T>
+  void sort(T fun) {
+    std::sort(lists.begin(), lists.end(), fun);
+  }
 };
 };  // namespace rdm::gfx

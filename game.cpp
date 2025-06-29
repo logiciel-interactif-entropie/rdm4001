@@ -3,6 +3,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_video.h>
+#include <readline/history.h>
+#include <readline/readline.h>
 
 #include <chrono>
 #include <csignal>
@@ -13,25 +15,23 @@
 #include "SDL_clipboard.h"
 #include "SDL_events.h"
 #include "SDL_keycode.h"
+#include "SDL_messagebox.h"
 #include "SDL_stdinc.h"
+#include "SDL_surface.h"
 #include "defs.hpp"
 #include "fun.hpp"
+#include "gfx/apis.hpp"
 #include "gfx/gl_context.hpp"
+#include "gfx/stb_image.h"
 #include "input.hpp"
 #include "logging.hpp"
 #include "network/network.hpp"
 #include "resource.hpp"
 #include "scheduler.hpp"
 #include "script/script.hpp"
-#ifndef DISABLE_OBZ
-#include "obz.hpp"
-#else
-#warning Compiled without OBZ support.
-#endif
-#include <readline/history.h>
-#include <readline/readline.h>
-
+#include "security.hpp"
 #include "settings.hpp"
+#include "subprojects/common/filesystem.hpp"
 
 #ifdef __linux
 #include <signal.h>
@@ -55,11 +55,14 @@ static CVar cl_savedwindowpos("cl_savedwindowpos", "-1 -1",
 Game::Game() {
   if (!Fun::preFlightChecks()) abort();  // clearly not safe to run
 
+  Log::printf(LOG_INFO, "Hello World!");
+
   ignoreNextMouseMoveEvent = false;
 
   script::Script::initialize();
   network::NetworkManager::initialize();
   resourceManager.reset(new ResourceManager());
+  securityManager.reset(new SecurityManager());
 
   initialized = false;
   window = NULL;
@@ -72,6 +75,9 @@ Game::Game() {
   Log::printf(LOG_INFO, "RDM engine version %06x", ENGINE_VERSION);
   Log::printf(LOG_INFO, "RDM protocol version %06x", PROTOCOL_VERSION);
   if (cl_copyright.getBool()) Log::printf(LOG_INFO, "%s", copyright());
+
+  iconImg = "dat0/icon.png";
+  dirtyIcon = true;
 }
 
 Game::~Game() {
@@ -87,7 +93,7 @@ size_t Game::getVersion() { return ENGINE_VERSION; }
 
 const char* Game::copyright() {
   return R"a(RDM4001, a 3D game engine 
-Copyright (C) 2024-2026 Logiciel Interactif Entropie
+Copyright (C) 2024-2026 Logiciel Interactif Entrope
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -112,31 +118,28 @@ void Game::startGameState(GameStateConstructorFunction f) {
 }
 
 static CVar fullscreen("fullscreen", "0", CVARF_SAVE | CVARF_GLOBAL);
+static CVar r_api("r_api", "GLModern", CVARF_SAVE | CVARF_GLOBAL);
 
 void Game::startClient() {
+  if (!gfx::ApiFactory::singleton()->platformSupportsGraphics())
+    throw std::runtime_error("This build does not contain any graphics apis");
+
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
-    if (!window)
-      Log::printf(LOG_FATAL, "Unable to init SDL (%s)", SDL_GetError());
+    Log::printf(LOG_FATAL, "Unable to init SDL (%s)", SDL_GetError());
+    throw std::runtime_error("SDL init failed");
   }
 
-  int context_flags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
-#ifndef NDEBUG
-  context_flags |= SDL_GL_CONTEXT_DEBUG_FLAG;
-#endif
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, context_flags);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  world.reset(new World(worldSettings));
 
-  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-  SDL_GL_LoadLibrary(NULL);
+  if (!gfx::ApiFactory::singleton()->valid(r_api.getValue().c_str())) {
+    Log::printf(LOG_ERROR, "r_api %s is invalid, setting to default %s",
+                r_api.getValue().c_str(),
+                gfx::ApiFactory::singleton()->getDefault());
+    r_api.setValue(gfx::ApiFactory::singleton()->getDefault());
+  }
+  gfx::ApiFactory::ApiReg reg =
+      gfx::ApiFactory::singleton()->getFunctions(r_api.getValue().c_str());
+  int flags = reg.prepareSdl();
 
   glm::vec2 wsize = cl_savedwindowsize.getVec2();
   glm::ivec2 wpos = glm::ivec2(SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
@@ -144,28 +147,18 @@ void Game::startClient() {
     wpos = cl_savedwindowpos.getVec2();
   }
   Log::printf(LOG_DEBUG, "saved pos: %ix%i", wpos.x, wpos.y);
-  Uint32 flags = SDL_WINDOW_OPENGL;
   flags |= fullscreen.getBool() ? SDL_WINDOW_FULLSCREEN : SDL_WINDOW_RESIZABLE;
 
-  window = SDL_CreateWindow("A rdm presentation", wpos.x, wpos.y, wsize.x,
-                            wsize.y, flags);
+  window =
+      SDL_CreateWindow("RDM4001!!!", wpos.x, wpos.y, wsize.x, wsize.y, flags);
+  SDL_SetWindowMinimumSize(window, 800, 600);
 
-#ifndef DISABLE_OBZ
-  obz::ObzFileSystemAPI* obzFsApi = 0;
-  try {
-    obzFsApi = new obz::ObzFileSystemAPI("game");
-    common::FileSystem::singleton()->addApi(obzFsApi, "data_obz");
-  } catch (std::runtime_error& e) {
-    Log::printf(LOG_ERROR, "Couldn't open archive what() = %s", e.what());
-  }
-#endif
+  updateIcon();
 
-  if (!window)
+  if (!window) {
     Log::printf(LOG_FATAL, "Unable to create Window (%s)", SDL_GetError());
-  world.reset(new World(worldSettings));
-#ifndef DISABLE_OBZ
-  if (obzFsApi) obzFsApi->addToScheduler(world->getScheduler());
-#endif
+    throw std::runtime_error("SDL window couldn't be created");
+  }
 
   soundManager.reset(new SoundManager(world.get()));
 
@@ -228,6 +221,10 @@ class ConsoleLineInputJob : public SchedulerJob {
 
  public:
   ConsoleLineInputJob(Console* console) : SchedulerJob("ConsoleLineInput") {
+    Log::printf(LOG_WARN,
+                "You have to send ^C or enter to the line buffer when exiting, "
+                "or it will wait on the job");  // FIXME
+
     this->console = console;
   }
 
@@ -263,6 +260,39 @@ class ResourceManagerTickJob : public SchedulerJob {
 
 static CVar enable_console("enable_console", "1", CVARF_SAVE | CVARF_GLOBAL);
 
+void Game::updateIcon() {
+  auto imgData = common::FileSystem::singleton()->readFile(iconImg.c_str());
+  if (imgData) {
+    int x, y, ch;
+    stbi_uc* uc =
+        stbi_load_from_memory(imgData->data(), imgData->size(), &x, &y, &ch, 4);
+    int pitch = ((x * ch) + 3) & ~3;
+    int rmask, gmask, bmask, amask;
+
+#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+    rmask = 0x000000ff;
+    gmask = 0x0000ff00;
+    bmask = 0x00ff0000;
+    amask = (ch == 4) ? 0xff000000 : 0;
+#else
+    int s = (ch == 4) ? 0 : 8;
+    rmask = 0xff000000 >> s;
+    gmask = 0x00ff0000 >> s;
+    bmask = 0x0000ff00 >> s;
+    amask = 0x000000ff >> s;
+#endif
+
+    SDL_Surface* surf = SDL_CreateRGBSurfaceFrom(uc, x, y, ch * 8, pitch, rmask,
+                                                 gmask, bmask, amask);
+    Log::printf(LOG_DEBUG, "Set icon to %s", iconImg.c_str());
+    SDL_SetWindowIcon(window, surf);
+    SDL_FreeSurface(surf);
+    free(uc);
+  }
+
+  dirtyIcon = false;
+}
+
 void Game::earlyInit() {
   try {
     initialize();
@@ -295,6 +325,10 @@ void Game::earlyInit() {
     initialized = true;
   } catch (std::exception& e) {
     Log::printf(LOG_FATAL, "Error initializing game: %s", e.what());
+    if (world) {
+      SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error in initialization",
+                               e.what(), window);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -316,8 +350,12 @@ void Game::pollEvents() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_BLOCK("SDL_PollEvent");
 #endif
+  std::scoped_lock l(Input::singleton()->getFlushingMutex());
+
   Input::singleton()->beginFrame();
   SDL_Event event;
+
+  if (dirtyIcon) updateIcon();
 
   bool ignoreMouse = false;
   SDL_ShowCursor(!Input::singleton()->getMouseLocked());

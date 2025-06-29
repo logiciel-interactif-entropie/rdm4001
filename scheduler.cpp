@@ -3,9 +3,14 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <thread>
 
+#include "gfx/engine.hpp"
+#include "gfx/gui/ngui.hpp"
 #include "input.hpp"
 #include "logging.hpp"
+#include "profiler.hpp"
+#include "settings.hpp"
 
 #ifdef __linux
 #include <linux/prctl.h> /* Definition of PR_* constants */
@@ -17,11 +22,56 @@
 #include <easy/profiler.h>
 #endif
 
+#include "game.hpp"
 #include "gfx/imgui/imgui.h"
 
 static size_t schedulerId = 0;
 
 namespace rdm {
+static CVar sched_graph("sched_graph", "0", CVARF_SAVE | CVARF_GLOBAL);
+std::map<std::thread::id, std::string> __threadNames = {};
+
+class SchedulerGraphGui : public gfx::gui::NGui {
+  gfx::gui::Font* font;
+
+ public:
+  SchedulerGraphGui(gfx::gui::NGuiManager* gui, gfx::Engine* engine)
+      : NGui(gui, engine) {
+    font = gui->getFontCache()->get("engine/gui/monospace.ttf", 10);
+  }
+
+  virtual void render(gfx::gui::NGuiRenderer* renderer) {
+    if (!sched_graph.getBool()) return;
+
+    renderer->setZIndex(UINT32_MAX);
+
+    Scheduler* scheduler = getGame()->getWorld()->getScheduler();
+    int yoff = 480;
+    for (auto& job : scheduler->jobs) {
+      JobStatistics stats = job->getStats();
+      float frameTime = job->getFrameRate();
+      float frameDelta = stats.totalDeltaTime;
+      float framePctg = frameDelta / frameTime;
+      float framePctgT = frameTime / stats.getAvgDeltaTime();
+
+      renderer->setColor(glm::vec3(1.f));
+      int szy =
+          renderer->text(glm::ivec2(0, yoff), font, 0, "%s", job->stats.name)
+              .second;
+      renderer->setColor(glm::mix(glm::vec3(1.0, 0.0, 0.0),
+                                  glm::vec3(0.0, 1.0, 0.0), framePctgT));
+      renderer->image(getEngine()->getWhiteTexture(), glm::vec2(200, yoff),
+                      glm::vec2(framePctgT * 200.f, szy));
+      renderer->setColor(glm::vec3(1.f));
+      renderer->text(glm::ivec2(200, yoff), font, 0, "Dt: %.4f, Fps: %.2f",
+                     frameDelta, 1.0 / frameDelta);
+      yoff -= szy;
+    }
+  }
+};
+
+NGUI_INSTANTIATOR(SchedulerGraphGui);
+
 Scheduler::Scheduler() { this->id = schedulerId++; }
 Scheduler::~Scheduler() { waitToWrapUp(); }
 
@@ -54,7 +104,8 @@ void Scheduler::startAllJobs() {
   for (int i = 0; i < jobs.size(); i++) jobs[i]->startTask();
 }
 
-SchedulerJob::SchedulerJob(const char* name, bool stopOnCancel) {
+SchedulerJob::SchedulerJob(const char* name, bool stopOnCancel)
+    : profiler(this) {
   this->stopOnCancel = stopOnCancel;
   stats.name = name;
   killMutex.lock();
@@ -83,29 +134,23 @@ void SchedulerJob::task(SchedulerJob* job) {
 #ifdef __linux
   std::string jobName = job->getStats().name;
   jobName += "/" + std::to_string(job->getStats().schedulerId);
+  __threadNames[std::this_thread::get_id()] = jobName;
   pthread_setname_np(pthread_self(), jobName.c_str());
   prctl(PR_SET_NAME, jobName.c_str());
+  job->osTid = gettid();
 #endif
 #endif
   job->osPid = getpid();
-  job->osTid = gettid();
-#ifndef DISABLE_EASY_PROFILER
-  EASY_THREAD_SCOPE(jobName.c_str());
-#endif
   job->stats.time = 0.0;
   for (int i = 0; i < SCHEDULER_TIME_SAMPLES; i++)
     job->stats.deltaTimeSamples[i] = 0.0;
   bool running = true;
-#ifndef NDEBUG
   Log::printf(LOG_DEBUG, "Starting job %s/%i", job->getStats().name,
               job->getStats().schedulerId);
-#endif
   job->startup();
   while (running) {
-#ifndef DISABLE_EASY_PROFILER
-    EASY_BLOCK("Step");
-#endif
     std::chrono::time_point start = std::chrono::steady_clock::now();
+    job->profiler.frame();
 
     Result r;
     try {
@@ -157,22 +202,19 @@ void SchedulerJob::task(SchedulerJob* job) {
     std::chrono::time_point end = std::chrono::steady_clock::now();
     std::chrono::duration execution = end - start;
     if (frameRate != 0.0) {  // run as fast as we can if there is no frame rate
-#ifndef DISABLE_EASY_PROFILER
-      EASY_BLOCK("Sleep");
-#endif
+      job->profiler.fun("sleep");
       std::chrono::duration sleep =
           std::chrono::duration<double>(frameRate) - execution -
           std::chrono::duration<double>(frameRate * 0.00599999999999);
       std::chrono::time_point until = end + sleep;
       if (job->stopOnCancel) {
         if (job->killMutex.try_lock_until(until)) {
-          Log::printf(LOG_DEBUG, "killMutex unlocked on %s",
-                      job->getStats().name);
           running = false;
         }
       } else {
         std::this_thread::sleep_until(until);
       }
+      job->profiler.end();
     }
     job->stats.deltaTime = std::chrono::duration<double>(execution).count();
     end = std::chrono::steady_clock::now();
@@ -184,10 +226,8 @@ void SchedulerJob::task(SchedulerJob* job) {
   }
   job->shutdown();
   job->state = Stopped;
-#ifndef NDEBUG
-  Log::printf(LOG_DEBUG, "Task %s/%i stopped", job->getStats().name,
-              job->getStats().schedulerId);
-#endif
+  Log::printf(LOG_DEBUG, "Task %s/%i stopped. It hopes to see you soon.",
+              job->getStats().name, job->getStats().schedulerId);
 }
 
 void SchedulerJob::startTask() {

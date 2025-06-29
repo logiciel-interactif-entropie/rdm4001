@@ -25,6 +25,7 @@ enum DataType {
 
   DtSampler,  // only useful for programs
   DtBuffer,
+  DtBufferSub,
 };
 
 class BaseTexture {
@@ -140,7 +141,8 @@ class BaseBuffer {
      * write vertex data. On OpenGL, this will call glDrawArrays if drawn using
      * BaseDevice::draw
      */
-    Array
+    Array,
+    Uniform,
   };
 
   /**
@@ -174,6 +176,8 @@ class BaseBuffer {
    */
   virtual void upload(Type type, Usage usage, size_t size,
                       const void* data) = 0;
+  virtual void uploadSub(size_t offset, size_t size, const void* data) = 0;
+  virtual void setBind(int index, size_t offset, size_t size) = 0;
   virtual void bind() = 0;
 
   enum Access {
@@ -210,7 +214,12 @@ class BaseProgram {
       int slot;
       BaseTexture* texture;
     } texture;
-    BaseBuffer* buffer;
+    struct {
+      int slot;
+      size_t offset;
+      size_t size;
+      BaseBuffer* buffer;
+    } buffer;
     glm::mat2 matrix2x2;
     glm::mat3 matrix3x3;
     glm::mat4 matrix4x4;

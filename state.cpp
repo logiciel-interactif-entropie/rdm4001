@@ -6,7 +6,10 @@
 #include "fun.hpp"
 #include "game.hpp"
 #include "gfx/base_types.hpp"
+#include "gfx/engine.hpp"
+#include "gfx/gui/font.hpp"
 #include "gfx/gui/gui.hpp"
+#include "gfx/gui/ngui.hpp"
 #include "input.hpp"
 #include "network/network.hpp"
 #include "script/my_basic.h"
@@ -14,107 +17,74 @@
 namespace rdm {
 static CVar cl_nointro("cl_nointro", "0", CVARF_GLOBAL | CVARF_SAVE);
 
-static int _BasGetState(mb_interpreter_t* s, void** l) {
-  std::map<GameState::States, std::string> stateNames = {
-      {GameState::MainMenu, "MainMenu"},
-      {GameState::MenuOnlinePlay, "MenuOnlinePlay"},
-      {GameState::InGame, "InGame"},
-      {GameState::Intro, "Intro"},
-      {GameState::Connecting, "Connecting"},
-  };
+struct MainMenuGui : public gfx::gui::NGui {
+  gfx::gui::Font* font;
 
-  mb_check(mb_attempt_open_bracket(s, l));
-  mb_check(mb_attempt_close_bracket(s, l));
+  void renderMainMenu(gfx::gui::NGuiRenderer* renderer) {
+    glm::vec2 res = getEngine()->getTargetResolution();
+    int numElements = 3;
+    glm::vec2 spacePerElement = res;
+    spacePerElement.x /= numElements;
+    int elems = 0;
+    renderer->text(glm::ivec2(0, 0), font, 0, "Play Game");
+    renderer->getLastCommand()->setOffset(
+        glm::vec2((spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
+                      (renderer->getLastCommand()->getScale().value().x / 2.f),
+                  0));
+    renderer->text(glm::ivec2(0, 0), font, 0, "Settings");
+    renderer->getLastCommand()->setOffset(
+        glm::vec2((spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
+                      (renderer->getLastCommand()->getScale().value().x / 2.f),
+                  0));
+    renderer->text(glm::ivec2(0, 0), font, 0, "Disconnect");
+    renderer->getLastCommand()->setOffset(
+        glm::vec2((spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
+                      (renderer->getLastCommand()->getScale().value().x / 2.f),
+                  0));
+  }
+  void renderConnecting(gfx::gui::NGuiRenderer* renderer) {}
 
-  script::Context* context;
-  mb_get_userdata(s, (void**)&context);
-
-  std::string stateName =
-      stateNames[context->getWorld()->getGame()->getGameState()->getState()];
-
-  mb_push_string(s, l, mb_memdup(stateName.data(), stateName.size() + 1));
-
-  return MB_FUNC_OK;
-}
-
-static int _BasSetState(mb_interpreter_t* s, void** l) {
-  char* state;
-
-  std::map<std::string, GameState::States> stateNames = {
-      {"MainMenu", GameState::MainMenu},
-      {"MenuOnlinePlay", GameState::MenuOnlinePlay},
-      {"InGame", GameState::InGame},
-      {"Intro", GameState::Intro},
-      {"Connecting", GameState::Connecting}};
-
-  mb_check(mb_attempt_open_bracket(s, l));
-  mb_check(mb_pop_string(s, l, &state));
-  mb_check(mb_attempt_close_bracket(s, l));
-
-  auto it = stateNames.find(state);
-  if (it == stateNames.end()) {
-    Log::printf(LOG_ERROR, "Unknown state %s", state);
-    return MB_FUNC_ERR;
+ public:
+  MainMenuGui(gfx::gui::NGuiManager* gui, gfx::Engine* engine)
+      : NGui(gui, engine) {
+    font = gui->getFontCache()->get("engine/gui/eras.ttf", 24);
   }
 
-  script::Context* context;
-  mb_get_userdata(s, (void**)&context);
-  context->getWorld()->getGame()->getGameState()->setState(stateNames[state]);
+  virtual void render(gfx::gui::NGuiRenderer* renderer) {
+    switch (getGame()->getGameState()->getState()) {
+      case GameState::MainMenu:
+        renderMainMenu(renderer);
+        break;
+      case GameState::MenuOnlinePlay:
+        break;
+      case GameState::Connecting:
+        renderConnecting(renderer);
+        break;
+      default:
+        break;
+    }
+  }
+};
 
-  return MB_FUNC_OK;
-}
-
-static int _BasStateCallback(mb_interpreter_t* s, void** l) {
-  char* runtime;
-
-  mb_check(mb_attempt_open_bracket(s, l));
-  mb_check(mb_pop_string(s, l, &runtime));
-  mb_check(mb_attempt_close_bracket(s, l));
-
-  script::Context* context;
-  mb_get_userdata(s, (void**)&context);
-
-  std::string _runtime = runtime;
-  std::transform(_runtime.begin(), _runtime.end(), _runtime.begin(), ::toupper);
-  context->getWorld()->getGame()->getGameState()->switchingState.listen(
-      [s, l, _runtime] {
-        mb_value_t routine;
-        mb_value_t args[1];
-        mb_value_t ret;
-        mb_get_routine(s, l, _runtime.c_str(), &routine);
-        mb_make_nil(ret);
-        mb_make_nil(args[0]);
-        mb_eval_routine(s, l, routine, args, 0, &ret);
-      });
-
-  return MB_FUNC_OK;
-}
+NGUI_INSTANTIATOR(MainMenuGui);
 
 GameState::GameState(Game* game) {
   this->game = game;
   state = cl_nointro.getBool() ? MainMenu : Intro;
   timer = 10.f;
   emitter = game->getSoundManager()->newEmitter();
-  entropyLogo =
-      game->getResourceManager()->load<resource::Model>("dat0/entropy.obj");
-
-  game->getWorld()->getScriptContext()->setContextCall.listen(
-      [](mb_interpreter_t* s) {
-        mb_begin_module(s, "STATE");
-        mb_register_func(s, "SET", _BasSetState);
-        mb_register_func(s, "GET", _BasGetState);
-        mb_register_func(s, "ADDCALLBACK", _BasStateCallback);
-        mb_end_module(s);
-      });
+  entropyLogo = game->getResourceManager()->load<resource::Model>(
+      "engine/assets/entropy.obj");
 
   game->getGfxEngine()->initialized.listen([this, game] {});
 
   game->getGfxEngine()->renderStepped.listen([this, game] {
     switch (state) {
-      case Connecting:
       default:
+      case Connecting:
+      case InGame:
+        break;
       case MainMenu: {
-        game->getGfxEngine()->setClearColor(glm::vec3(1.f));
       } break;
       case Intro: {
         Graph::Node node;
@@ -123,15 +93,12 @@ GameState::GameState(Game* game) {
         gfx::Camera& camera =
             game->getGfxEngine()->getCurrentViewport()->getCamera();
         float time = game->getGfxEngine()->getTime();
-        game->getGfxEngine()->setClearColor(glm::vec3(0.0, 0.0, 0.0));
         if (time < 1.0) {
           camera.setTarget(
               glm::vec3(2.f - (time * 2.f), 0.0, 2.f - (time * 2.f)));
         } else if (time > 9.0) {
           camera.setTarget(
               glm::vec3(0.0, glm::mix(0.0, 10.0, 9.f - time), 0.0));
-          game->getGfxEngine()->setClearColor(
-              glm::mix(glm::vec3(0.0), glm::vec3(1), time - 9.f));
         } else {
         }
         camera.setUp(glm::vec3(0.0, 1.0, 0.0));

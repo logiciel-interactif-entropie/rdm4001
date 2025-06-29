@@ -23,7 +23,7 @@
 #include "settings.hpp"
 namespace rdm {
 ResourceManager::ResourceManager() {
-  missingTexture = load<resource::Texture>("dat5/missingtexture.png");
+  missingTexture = load<resource::Texture>(RESOURCE_MISSING_TEXTURE);
   previewViewport = NULL;
 }
 
@@ -160,7 +160,7 @@ void ResourceManager::imgui(gfx::Engine* engine) {
       if (resource::Model* model =
               dynamic_cast<resource::Model*>(selectedResource)) {
         ImGui::Image(previewViewport->get()->getImTextureId(),
-                     ImVec2(imgSize.x, imgSize.y));
+                     ImVec2(imgSize.x, imgSize.y), ImVec2(0, 1), ImVec2(1, 0));
       }
     }
 

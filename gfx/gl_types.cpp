@@ -320,7 +320,19 @@ void GLProgram::bindParameters() {
     if (locations.find(name) != locations.end()) {
       object = locations[name];
     } else {
-      object = glGetUniformLocation(program, name.c_str());
+      switch (pair.first.type) {
+        case DtBuffer:
+        case DtBufferSub:
+          object = glGetUniformBlockIndex(program, name.c_str());
+          if (object == GL_INVALID_INDEX)
+            Log::printf(LOG_ERROR,
+                        "glGetUniformBlockIndex returned GL_INVALID_INDEX %04x",
+                        glGetError());
+          break;
+        default:
+          object = glGetUniformLocation(program, name.c_str());
+          break;
+      }
       locations[name] = object;
     }
 
@@ -360,6 +372,21 @@ void GLProgram::bindParameters() {
           glUniform1i(object, pair.second.texture.slot);
         }
         break;
+      case DtBuffer:
+        if (pair.second.buffer.buffer) {
+          glUniformBlockBinding(program, object, pair.second.buffer.slot);
+          pair.second.buffer.buffer->setBind(
+              pair.second.buffer.slot, 0, pair.second.buffer.buffer->getSize());
+        }
+        break;
+      case DtBufferSub:
+        if (pair.second.buffer.buffer) {
+          glUniformBlockBinding(program, object, pair.second.buffer.slot);
+          pair.second.buffer.buffer->setBind(pair.second.buffer.slot,
+                                             pair.second.buffer.size,
+                                             pair.second.buffer.offset);
+        }
+        break;
       default:
         throw std::runtime_error("FIX THIS!! bad datatype for parameter");
         break;
@@ -383,6 +410,8 @@ GLenum GLBuffer::bufType(Type type) {
       return GL_ELEMENT_ARRAY_BUFFER;
     case Array:
       return GL_ARRAY_BUFFER;
+    case Uniform:
+      return GL_UNIFORM_BUFFER;
     default:
       throw std::runtime_error("GL bufType(Type type) used with bad type");
   }
@@ -406,6 +435,22 @@ void GLBuffer::upload(Type type, Usage usage, size_t size, const void* data) {
   } else {
     glBufferSubData(bufType(type), 0, size, data);
   }
+  glBindBuffer(bufType(type), 0);
+}
+
+void GLBuffer::uploadSub(size_t offset, size_t size, const void* data) {
+  if (size == 0) {
+    throw std::runtime_error("Uninitialized buffer");
+  }
+
+  glBindBuffer(bufType(type), buffer);
+  glBufferSubData(bufType(type), offset, size, data);
+  glBindBuffer(bufType(type), 0);
+}
+
+void GLBuffer::setBind(int index, size_t offset, size_t size) {
+  glBindBuffer(bufType(type), buffer);
+  glBindBufferRange(bufType(type), index, buffer, offset, size);
   glBindBuffer(bufType(type), 0);
 }
 

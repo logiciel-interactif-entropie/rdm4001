@@ -106,4 +106,28 @@ glm::ivec2 GLContext::getBufferSize() {
   SDL_GetWindowSize((SDL_Window*)getHwnd(), &z.x, &z.y);
   return z;
 }
+
+int GLContext::prepareSdl() {
+  int context_flags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+#ifndef NDEBUG
+  context_flags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
+
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, context_flags);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
+
+  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+  SDL_GL_LoadLibrary(NULL);
+
+  return SDL_WINDOW_OPENGL;
+}
 }  // namespace rdm::gfx::gl

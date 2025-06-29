@@ -3,8 +3,15 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
+#include <cstdint>
+#include <list>
+#include <world.hpp>
+
 #include "font.hpp"
 #include "gfx/engine.hpp"
+#include "input.hpp"
+#include "ngui_window.hpp"
+#include "settings.hpp"
 
 namespace rdm::gfx::gui {
 NGuiSingleton::NGuiSingleton() {}
@@ -44,11 +51,29 @@ NGuiManager::NGuiManager(gfx::Engine* engine) {
 }
 
 void NGuiManager::render() {
-  NGuiRenderer renderer(this, engine);
+  engine->getRenderJob()->getProfiler().fun("ngui compose");
+  int texNum = 0;
+  std::vector<NGuiRenderer*> renderers;
   for (auto [name, gui] : guis) {
-    gui->render(&renderer);
+    NGuiRenderer* renderer = new NGuiRenderer(this, engine, texNum);
+    gui->render(renderer);
+    texNum += renderer->texNum;
+    if (renderer->submittedCommands)
+      engine->pass(RenderPass::HUD).add(renderer->getList());
+    renderers.push_back(renderer);
   }
-  engine->pass(RenderPass::HUD).add(renderer.getList());
+  engine->pass(RenderPass::HUD)
+      .sort([](RenderList const& a, RenderList const& b) {
+        NGuiRenderer* _a = (NGuiRenderer*)a.getUser();
+        NGuiRenderer* _b = (NGuiRenderer*)b.getUser();
+
+        if (_a->getZIndex() == _b->getZIndex()) return _a < _b;
+        return _a->getZIndex() > _b->getZIndex();
+      });
+  for (auto renderer : renderers) {
+    delete renderer;
+  }
+  engine->getRenderJob()->getProfiler().end();
 }
 
 NGuiManager::TexOutData NGuiManager::getTextTexture(int tn, Font* font,
@@ -71,13 +96,25 @@ NGuiManager::TexOutData NGuiManager::getTextTexture(int tn, Font* font,
     ctm->font = font;
     ctm->maxWidth = maxWidth;
 
-    OutFontTexture out = FontRender::render(font, text);
-    if (out.data == NULL) throw std::runtime_error("out.data == NULL");
-    ctm->height = out.h;
-    ctm->width = out.w;
+    if (ctm->maxWidth == 0) {
+      OutFontTexture out = FontRender::render(font, text);
+      if (out.data == NULL) throw std::runtime_error("out.data == NULL");
+      ctm->height = out.h;
+      ctm->width = out.w;
 
-    ctm->texture->upload2d(out.w, out.h, DtUnsignedByte, BaseTexture::RGBA,
-                           out.data);
+      ctm->texture->upload2d(out.w, out.h, DtUnsignedByte, BaseTexture::RGBA,
+                             out.data);
+    } else {
+      int acMaxWidth = maxWidth;
+      if (ctm->maxWidth == -1) acMaxWidth = 0;
+      OutFontTexture out = FontRender::renderWrapped(font, text, acMaxWidth);
+      if (out.data == NULL) throw std::runtime_error("out.data == NULL");
+      ctm->height = out.h;
+      ctm->width = out.w;
+
+      ctm->texture->upload2d(out.w, out.h, DtUnsignedByte, BaseTexture::RGBA,
+                             out.data);
+    }
   }
 
   d.texture = ctm->texture.get();
@@ -89,17 +126,19 @@ NGuiManager::TexOutData NGuiManager::getTextTexture(int tn, Font* font,
 
 static RenderListSettings settings(BaseDevice::None, BaseDevice::Always);
 
-NGuiRenderer::NGuiRenderer(NGuiManager* manager, gfx::Engine* engine)
+NGuiRenderer::NGuiRenderer(NGuiManager* manager, gfx::Engine* engine,
+                           int texNum)
     : list(manager->getImageMaterial()->prepareDevice(engine->getDevice(), 0),
            manager->getSArrayPointers(), settings) {
-  // list.getProgram()->setParameter("uiProjectionMatrix", DtMat4,
-  //                                 {.matrix4x4 = manager->getUiMatrix()});
-
   this->manager = manager;
   this->engine = engine;
   color = glm::vec3(1);
 
-  texNum = 0;
+  zIndex = 1337;
+  submittedCommands = 0;
+  list.setUser(this);
+
+  this->texNum = texNum;
 }
 
 std::pair<int, int> NGuiRenderer::text(glm::ivec2 position, Font* font,
@@ -131,10 +170,53 @@ std::pair<int, int> NGuiRenderer::text(glm::ivec2 position, Font* font,
   command.setScale(glm::vec2(d.width, d.height));
   command.setColor(color);
   command.setTexture(0, d.texture);
-  list.add(command);
+  lastCommand = list.add(command);
+
+  submittedCommands++;
 
   va_end(ap);
   return out;
+}
+
+void NGuiRenderer::image(gfx::BaseTexture* image, glm::vec2 position,
+                         glm::vec2 size) {
+  if (!image) image = engine->getWhiteTexture();
+
+  glm::vec2 target = glm::vec2(position.x, position.y);
+  glm::vec2 window = engine->getTargetResolution();
+  if (target.x < 0) {
+    target.x = (window.x + target.x) - size.x;
+  }
+  if (target.y < 0) {
+    target.y = (window.y + target.y) - size.y;
+  }
+
+  RenderCommand command(BaseDevice::Triangles, manager->getSElementBuf(), 6,
+                        NULL, NULL, NULL);
+  command.setOffset(target);
+  command.setScale(size);
+  command.setColor(color);
+  command.setTexture(0, image);
+  lastCommand = list.add(command);
+
+  submittedCommands++;
+}
+
+int NGuiRenderer::mouseDownZone(glm::vec2 pos, glm::vec2 size) {
+  float scale = Settings::singleton()->getCvar("r_scale")->getFloat();
+
+  glm::vec2 mp = Input::singleton()->getMousePosition();
+  glm::vec2 res = getEngine()->getTargetResolution();
+
+  mp.y = res.y - mp.y;
+  if (mp.x < pos.x) return -1;
+  if (mp.x > pos.x + size.x) return -1;
+  if (mp.y < pos.y) return -1;
+  if (mp.y > pos.y + size.y) return -1;
+  for (int i = 0; i < 3; i++) {
+    if (Input::singleton()->isMouseButtonDown(i)) return i;
+  }
+  return 0;
 }
 
 NGui::NGui(NGuiManager* gui, gfx::Engine* engine) {
@@ -142,33 +224,150 @@ NGui::NGui(NGuiManager* gui, gfx::Engine* engine) {
   this->engine = engine;
 }
 
+Game* NGui::getGame() { return engine->getWorld()->getGame(); }
+
+gfx::Engine* NGui::getEngine() { return engine; }
+
+#ifndef NDEBUG
+static CVar cl_showfps("cl_showfps", "1", CVARF_SAVE | CVARF_GLOBAL);
+#else
+static CVar cl_showfps("cl_showfps", "0", CVARF_SAVE | CVARF_GLOBAL);
+#endif
+
 class FPSDisplay : public NGui {
   Font* font;
+  std::list<float> frameTimes;
+  std::vector<const char*> shownBlocks;
+  int blockYoff = 0;
+
+  void renderBlock(NGuiRenderer* renderer, int lvl, Profiler::Block* block) {
+    if (!block->name) return;
+
+    int id = 0;
+    for (int i = 0; i < strlen(block->name); i++) {
+      id += block->name[i];
+    }
+
+    glm::vec3 color = glm::vec3((id & 0xf) / 15.f, ((id & 0xf0) >> 4) / 15.f,
+                                ((id & 0xf00) >> 8) / 15.f);
+
+    glm::vec2 res = getEngine()->getTargetResolution();
+
+    const float size =
+        res.x / getEngine()->getRenderJob()->getStats().deltaTime;
+
+    float b = block->begin.count() * size;
+    float t = block->time.count() * size;
+    if (cl_showfps.getInt() == 4)
+      t = getEngine()->getRenderJob()->getProfiler().getBlockAvg(block->name);
+
+    renderer->setColor(color);
+    renderer->image(getEngine()->getWhiteTexture(),
+                    glm::vec2(b, 100.f + lvl * 8), glm::vec2(t, 8.f));
+
+    if (std::find(shownBlocks.begin(), shownBlocks.end(), block->name) ==
+        shownBlocks.end()) {
+      shownBlocks.push_back(block->name);
+
+      renderer->setColor(glm::vec3(1) - color);
+      blockYoff -=
+          renderer
+              ->text(glm::ivec2(b, 100.f + lvl * 8), font, 0, "%s", block->name)
+              .second;
+    }
+
+    for (Profiler::Block& blockChild : block->children) {
+      renderBlock(renderer, lvl + 1, &blockChild);
+    }
+  }
 
  public:
   FPSDisplay(NGuiManager* gui, gfx::Engine* engine) : NGui(gui, engine) {
-    font = gui->getFontCache()->get("dat3/serif.ttf", 19);
+    font = gui->getFontCache()->get("engine/gui/serif.ttf", 8);
   }
 
   virtual void render(NGuiRenderer* renderer) {
+    if (!cl_showfps.getBool()) return;
+
+    renderer->setZIndex(INT32_MAX);
+
+    glm::vec2 res = getEngine()->getTargetResolution();
+
+    const int baseline = -1;
+    const float sampleWidth = res.x / 100.f / 4.f;
+    const float sampleSize =
+        res.y / getEngine()->getRenderJob()->getFrameRate() / 4.f;
+
     renderer->setColor(
         glm::mix(glm::vec3(1.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0),
-
                  renderer->getEngine()->getRenderJob()->getFrameRate() /
                      renderer->getEngine()
                          ->getRenderJob()
                          ->getStats()
                          .getAvgDeltaTime()));
-    renderer->text(glm::ivec2(0, -1), font, 0, "FPS %f",
+    renderer->text(glm::ivec2(0, baseline), font, 0, "FPS %f",
                    1.0 / renderer->getEngine()
                              ->getRenderJob()
                              ->getStats()
                              .getAvgDeltaTime());
-    renderer->text(glm::ivec2(-1, -1), font, 0,
-                   "© logiciel interactif entropie 2024-2026, RDM4001 is "
+    renderer->text(glm::ivec2(-1, baseline), font, -1,
+                   "© logiciel interactif entropie 2024-2026\nRDM4001 is "
                    "licensed under the GNU GPLv3");
+
+    if (cl_showfps.getInt() == 2) {
+      frameTimes.push_back(getEngine()->getRenderJob()->getStats().deltaTime);
+      if (frameTimes.size() >= 100) frameTimes.pop_front();
+      int xoff = 0;
+      for (float sample : frameTimes) {
+        renderer->setColor(glm::mix(
+            glm::vec3(0.0, 1.0, 0.0), glm::vec3(1.0, 0.0, 0.0),
+            sample / renderer->getEngine()->getRenderJob()->getFrameRate()));
+        renderer->image(getEngine()->getWhiteTexture(), glm::vec2(xoff, 0),
+                        glm::vec2(sampleWidth, sample * sampleSize));
+        xoff += sampleWidth;
+      }
+
+      renderer->setColor(glm::vec3(0.2f));
+      renderer->text(glm::ivec2(0, getEngine()->getRenderJob()->getFrameRate() *
+                                       sampleSize),
+                     font, 0, "BELOW OK (%0.2f%% BUDGET)",
+                     (getEngine()->getRenderJob()->getStats().deltaTime /
+                      getEngine()->getRenderJob()->getFrameRate()) *
+                         100.f);
+      renderer->image(getEngine()->getWhiteTexture(),
+                      glm::vec2(0, getEngine()->getRenderJob()->getFrameRate() *
+                                       sampleSize),
+                      glm::vec2(100, 1));
+    } else if (cl_showfps.getInt() == 3 || cl_showfps.getInt() == 4) {
+      blockYoff = res.y / 2.f;
+      shownBlocks.clear();
+      renderBlock(renderer, 0,
+                  getEngine()->getRenderJob()->getProfiler().getLastFrame());
+    }
   }
 };
 
 NGUI_INSTANTIATOR(FPSDisplay);
+
+class CoolWindow : public NGuiWindow {
+ public:
+  CoolWindow(NGuiManager* manager, Engine* engine)
+      : NGuiWindow(manager, engine) {
+    setTitle("Cool stuff you should check out");
+    open();
+  }
+
+  virtual void show(Render* renderer) {
+    for (int i = 0; i < 10; i++) renderer->text("%i", i);
+    renderer->text(
+        "superlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuper"
+        "longtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongt"
+        "extsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsu"
+        "perlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuperlo"
+        "ngtextsuperlongtextsuperlongtextsuperlongtext");
+    renderer->button("Test me");
+  }
+};
+
+NGUI_INSTANTIATOR(CoolWindow);
 }  // namespace rdm::gfx::gui

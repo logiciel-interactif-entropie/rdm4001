@@ -1,8 +1,0 @@
-<gui name="MainMenuButtons" anchor="TopRight">
-  <dom>
-    <label font="dat3/eras.ttf" ptsize="16" id="OnlinePlay" link="true">Online Play</label>
-    <label font="dat3/eras.ttf" ptsize="16" id="HostServer" link="true">Host Server</label>
-    <label font="dat3/eras.ttf" ptsize="16" id="Settings" link="true">Settings</label>
-    <label font="dat3/eras.ttf" ptsize="16" id="Quit" link="true">Quit</label>
-  </dom>
-</gui>

@@ -1,8 +1,10 @@
 #include "network.hpp"
 
+#include <dirent.h>
 #include <enet/enet.h>
 
 #include <chrono>
+#include <cstdint>
 #include <stdexcept>
 
 #include "console.hpp"
@@ -14,11 +16,6 @@
 #include "scheduler.hpp"
 #include "settings.hpp"
 #include "world.hpp"
-
-#ifndef DISABLE_OBZ
-#define RDM_COMPILE
-#include "obz.hpp"
-#endif
 
 #ifndef DISABLE_EASY_PROFILER
 #include <easy/profiler.h>
@@ -40,10 +37,120 @@ static CVar net_service("net_service", "1", CVARF_SAVE | CVARF_GLOBAL);
 
 #ifdef NDEBUG
 static CVar rcon_password("rcon_password", "", CVARF_SAVE | CVARF_GLOBAL);
+static CVar net_graph("net_graph", "0", CVARF_SAVE | CVARF_GLOBAL);
 #else
 static CVar rcon_password("rcon_password", "RCON_DEBUG",
                           CVARF_SAVE | CVARF_GLOBAL);
+static CVar net_graph("net_graph", "1", CVARF_SAVE | CVARF_GLOBAL);
 #endif
+
+class NetworkGraphGui : public gfx::gui::NGui {
+  gfx::gui::Font* font;
+
+ public:
+  NetworkGraphGui(gfx::gui::NGuiManager* gui, gfx::Engine* engine)
+      : NGui(gui, engine) {
+    font = gui->getFontCache()->get("engine/gui/monospace.ttf", 12);
+  }
+
+  void mgr(int xbase, gfx::gui::NGuiRenderer* renderer,
+           NetworkManager* networkManager) {
+    const int packetSize = 1;
+    const int packetWidth = 1;
+
+    int xoff = -(packetWidth + xbase);
+    int i = 0;
+
+    std::map<NetworkManager::PacketId, int> packetCounts;
+
+    {
+      std::scoped_lock l(networkManager->packetHistoryMutex);
+      for (auto entry : networkManager->packetHistory) {
+        int yoff = 0;
+        for (auto& [id, count] : entry) {
+          renderer->setColor(
+              glm::vec3((id % 2) / 2.f, (id % 4) / 4.f, (id % 6) / 6.f));
+          packetCounts[id] = std::max(packetCounts[id], count);
+          renderer->image(getEngine()->getWhiteTexture(), glm::vec2(xoff, yoff),
+                          glm::vec2(packetWidth, count * packetSize));
+          yoff += count * packetSize;
+        }
+        xoff -= packetWidth;
+        i++;
+      }
+    }
+
+    renderer->setColor(glm::vec3(1.f));
+
+    int yoff = 200;
+    if (!networkManager->isBackend()) {
+      switch (networkManager->getLocalPeer().type) {
+        case Peer::ConnectedPlayer: {
+          yoff -= renderer->text(glm::ivec2(-xbase, 200), font, 0, "connected")
+                      .second;
+
+        } break;
+        case Peer::Unconnected:
+          yoff -=
+              renderer->text(glm::ivec2(-xbase, 200), font, 0, "disconnected")
+                  .second;
+          break;
+        case Peer::Undifferentiated:
+          yoff -=
+              renderer->text(glm::ivec2(-xbase, 200), font, 0, "undif.").second;
+          break;
+        default:
+          break;
+      }
+    } else {
+      yoff -= renderer
+                  ->text(glm::ivec2(-xbase, 200), font, 0, "%i peers",
+                         networkManager->getPeers().size())
+                  .second;
+    }
+
+    for (auto [id, count] : packetCounts) {
+      std::map<NetworkManager::PacketId, const char*> packetNames = {
+          {NetworkManager::DeltaIdPacket, "DeltaIdPacket"},
+          {NetworkManager::NewIdPacket, "NewIdPacket"},
+          {NetworkManager::DistributedTimePacket, "DistributedTimePacket"},
+          {NetworkManager::NewPeerPacket, "NewPeerPacket"},
+          {NetworkManager::DelIdPacket, "DelIdPacket"},
+          {NetworkManager::PeerInfoPacket, "PeerInfoPacket"},
+          {NetworkManager::CvarPacket, "CvarPacket"},
+          {NetworkManager::DelPeerPacket, "DelPeerPacket"},
+          {NetworkManager::AuthenticatePacket, "AuthenticatePacket"},
+          {NetworkManager::WelcomePacket, "WelcomePacket"},
+          {NetworkManager::EventPacket, "EventPacket"},
+          {NetworkManager::SignalPacket, "SignalPacket"},
+          {NetworkManager::RconPacket, "RconPacket"},
+      };
+      renderer->setColor(
+          glm::vec3((id % 2) / 2.f, (id % 4) / 4.f, (id % 6) / 6.f));
+      const char* packetName = "Unknown";
+      if (packetNames.find(id) != packetNames.end())
+        packetName = packetNames[id];
+      yoff -= renderer
+                  ->text(glm::ivec2(-xbase, yoff), font, 0, "%s: %ib/f",
+                         packetName, count)
+                  .second;
+    }
+  }
+
+  virtual void render(gfx::gui::NGuiRenderer* renderer) {
+    if (!net_graph.getBool()) return;
+    renderer->setZIndex(UINT32_MAX);
+    if (getGame()->getWorld()->getNetworkManager()) {
+      mgr(1, renderer, getGame()->getWorld()->getNetworkManager());
+    }
+    if (getGame()->getServerWorld() &&
+        getGame()->getServerWorld()->getNetworkManager()) {
+      mgr(200, renderer, getGame()->getServerWorld()->getNetworkManager());
+    }
+  }
+};
+
+NGUI_INSTANTIATOR(NetworkGraphGui);
 
 static ConsoleCommand rcon(
     "rcon", "rcon [password] [command]",
@@ -81,7 +188,7 @@ static ConsoleCommand bot(
           game->getServerWorld()->getNetworkManager()->instantiate(
               game->getServerWorld()->getNetworkManager()->getPlayerType()));
       if (!player) throw std::runtime_error("player == NULL");
-      player->remotePeerId.set(-1);
+      player->remotePeerId.set(-2);
       player->displayName.set(std::format("Bot{}", rand() % 100));
       Log::printf(LOG_INFO, "%i", player->getEntityId());
     });
@@ -212,14 +319,37 @@ NetworkManager::~NetworkManager() {
   host = NULL;
 }
 
-static CVar sv_dtrate("sv_dtrate", "0.5", CVARF_SAVE | CVARF_GLOBAL);
+static CVar sv_dtrate("sv_dtrate", "1.5", CVARF_SAVE | CVARF_GLOBAL);
+static ConsoleCommand security_clear_host_keys(
+    "security_clear_host_keys", "security_clear_host_keys", "",
+    [](Game* game, ConsoleArgReader reader) {
+      DIR* hostdir = opendir((Fun::getLocalDataDirectory() + "hosts").c_str());
+      while (struct dirent* ent = readdir(hostdir)) {
+        if (ent->d_name == std::string(".") ||
+            ent->d_name == std::string("..") ||
+            ent->d_name == std::string(".DS_Store"))
+          continue;
+        std::string path =
+            Fun::getLocalDataDirectory() + "hosts/" + ent->d_name;
+        if (remove(path.c_str()) == 0) {
+          Log::printf(LOG_INFO, "Deleting %s", path.c_str());
+        } else {
+          Log::printf(LOG_INFO, "Failed to delete %s (%s)", path.c_str(),
+                      strerror(errno));
+        }
+      }
+    });
 
 void NetworkManager::service() {
   if (!host) return;
 
+  std::scoped_lock l(crazyThingsMutex);
+
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
 #endif
+
+  std::map<PacketId, int> packetFrameHistory;
 
   ENetEvent event;
 
@@ -230,8 +360,10 @@ void NetworkManager::service() {
 #ifndef DISABLE_EASY_PROFILER
     EASY_BLOCK("Handle Service");
 #endif
+
     switch (event.type) {
       case ENET_EVENT_TYPE_RECEIVE: {
+        bool unknownPacket = false;
         try {
           Peer* remotePeer = (Peer*)event.peer->data;
           BitStream stream(event.packet->data, event.packet->dataLength);
@@ -249,23 +381,67 @@ void NetworkManager::service() {
                               _ticks, _ticks - ticks);
                   distributedTime = stream.read<float>();
 
-#ifndef DISABLE_OBZ
-                  // doesn't do anything yet but will verify official servers
-                  obz::ObzCrypt::singleton()->readCryptPacket(stream, false);
-#endif
+                  SignedMessage msg = stream.readSignedMessage();
+                  if (getGame()->getSecurityManager()->verify(msg)) {
+                    std::string path = std::format(
+                        "{}hosts/{:#x}.{:#x}.sig", Fun::getLocalDataDirectory(),
+                        localPeer.address.host, localPeer.address.port);
+                    FILE* sig = fopen(path.c_str(), "r");
+                    if (sig) {
+                      char keybuf[65535];
+                      memset(keybuf, 0, sizeof(keybuf));
+                      fread(keybuf, 1, sizeof(keybuf), sig);
+                      fclose(sig);
+
+                      if (std::string(keybuf) != msg.key) {
+                        Log::printf(
+                            LOG_ERROR,
+                            "Server key is different then what was expected!"
+                            "Something spooky is happening!");
+                        requestDisconnect();
+                        throw std::runtime_error("Validation error");
+                      }
+
+                      if (!getGame()->getSecurityManager()->verify(msg,
+                                                                   keybuf)) {
+                        Log::printf(LOG_ERROR,
+                                    "Signature verification failed! "
+                                    "Something spooky is happening!");
+                        requestDisconnect();
+                        throw std::runtime_error("Validation error");
+                      }
+                    } else {
+                      sig = fopen(path.c_str(), "w");
+                      Log::printf(LOG_WARN, "Unknown remote key, saving to %s",
+                                  path.c_str());
+                      fwrite(msg.key.data(), 1, msg.key.size(), sig);
+                      fclose(sig);
+                    }
+                  } else {
+                    Log::printf(LOG_ERROR,
+                                "Invalid signature sent on WelcomePacket, "
+                                "triggering disconnect");
+                    requestDisconnect();
+                    throw std::runtime_error("Validation error");
+                  }
 
                   ticks = _ticks;
 
                   BitStream authenticateStream;
                   authenticateStream.write<PacketId>(AuthenticatePacket);
+
+                  std::vector<unsigned char> test;
+                  for (int i = 0; i < 128; i++) {
+                    test.push_back(rand() % 0xff);
+                  }
+
+                  authenticateStream.writeSignedMessage(
+                      getGame()->getSecurityManager()->sign((char*)test.data(),
+                                                            4));
+
                   authenticateStream.writeString(this->username);
                   authenticateStream.writeString(password);
                   authenticateStream.writeString(userPassword);
-
-#ifndef DISABLE_OBZ
-                  obz::ObzCrypt::singleton()->writeCryptPacket(
-                      authenticateStream, false);
-#endif
 
                   enet_peer_send(localPeer.peer, NETWORK_STREAM_META,
                                  authenticateStream.createPacket(
@@ -274,13 +450,11 @@ void NetworkManager::service() {
                 break;
               case AuthenticatePacket:
                 if (backend) {
+                  SignedMessage identity = stream.readSignedMessage();
+
                   std::string username = stream.readString();
                   std::string password = stream.readString();
                   std::string userPassword = stream.readString();
-
-#ifndef DISABLE_OBZ
-                  obz::ObzCrypt::singleton()->readCryptPacket(stream, true);
-#endif
 
                   if (!userPassword.empty())
                     if (userPassword != this->userPassword) {
@@ -385,7 +559,8 @@ void NetworkManager::service() {
                       if (!allowed) {
                         Log::printf(
                             LOG_ERROR,
-                            "Peer %i attempted to modify %s (%i, reliable: %s)",
+                            "Peer %i attempted to modify %s (%i, reliable: "
+                            "%s)",
                             remotePeer->peerId, ent->getTypeName(),
                             ent->getEntityId(),
                             event.packet->flags & ENET_PACKET_FLAG_RELIABLE
@@ -517,7 +692,7 @@ void NetworkManager::service() {
                   if (rcon_password.getValue().empty()) break;
 
                   std::string password = stream.readString();
-                  std::string command = stream.readString();
+                  SignedMessage command = stream.readSignedMessage();
 
                   if (password != rcon_password.getValue()) {
                     Log::printf(LOG_ERROR, "Player attempted password %s",
@@ -525,9 +700,13 @@ void NetworkManager::service() {
                     throw std::runtime_error("Bad password");
                   }
 
+                  if (!getGame()->getSecurityManager()->verify(command)) {
+                    throw std::runtime_error("Couldn't verify rcon sender");
+                  }
+
                   Log::printf(LOG_INFO, "peer %i] %s", remotePeer->peerId,
-                              command.c_str());
-                  game->getConsole()->command(command);
+                              command.data.data());
+                  game->getConsole()->command(command.data.data());
                 }
                 break;
               case EventPacket: {
@@ -565,6 +744,7 @@ void NetworkManager::service() {
               default:
                 Log::printf(LOG_WARN, "%s: Unknown packet %i",
                             backend ? "Backend" : "Frontend", packetId);
+                unknownPacket = true;
                 break;
             }
           } catch (std::exception& e) {
@@ -572,6 +752,12 @@ void NetworkManager::service() {
                 LOG_ERROR,
                 "%s: Error in ENET_EVENT_TYPE_RECEIVE: %s (packet id: %i)",
                 backend ? "Backend" : "Frontend", e.what(), packetId);
+          }
+          if (!unknownPacket) {
+            if (packetFrameHistory.find(packetId) == packetFrameHistory.end())
+              packetFrameHistory[packetId] = stream.getSize();
+            else
+              packetFrameHistory[packetId] += stream.getSize();
           }
         } catch (std::exception& e) {
           Log::printf(LOG_ERROR, "%s: Error in ENET_EVENT_TYPE_RECEIVE: %s",
@@ -636,10 +822,12 @@ void NetworkManager::service() {
           welcomePacketStream.write<size_t>(ticks);
           welcomePacketStream.write<float>(distributedTime);
 
-#ifndef DISABLE_OBZ
-          obz::ObzCrypt::singleton()->writeCryptPacket(welcomePacketStream,
-                                                       true);
-#endif
+          std::vector<unsigned char> test;
+          for (int i = 0; i < 128; i++) {
+            test.push_back(rand() % 0xff);
+          }
+          welcomePacketStream.writeSignedMessage(
+              getGame()->getSecurityManager()->sign((char*)test.data(), 4));
 
           enet_peer_send(
               event.peer, NETWORK_STREAM_META,
@@ -656,6 +844,12 @@ void NetworkManager::service() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_END_BLOCK;
 #endif
+
+  if (net_graph.getBool()) {
+    std::scoped_lock l(packetHistoryMutex);
+    if (packetHistory.size() >= 100) packetHistory.pop_front();
+    packetHistory.push_back(packetFrameHistory);
+  }
 
 #ifndef DISABLE_EASY_PROFILER
   EASY_BLOCK("Network Tick");
@@ -719,7 +913,7 @@ void NetworkManager::service() {
 
           Entity* ent = entities[id].get();
 
-          BitStream::Context ctxt = BitStream::ToClient;
+          BitStream::Context ctxt = BitStream::ToNewClient;
           if (ent->getOwnership(&peer.second)) ctxt = BitStream::ToClientLocal;
           deltaIdStream.setContext(ctxt);
           deltaIdStreamUnreliable.setContext(ctxt);
@@ -776,10 +970,11 @@ void NetworkManager::service() {
               _peer.second.playerEntity->getEntityId());
           enet_peer_send(
               peer.second.peer,
-              NETWORK_STREAM_ENTITY,  // even though this is technically a meta
-                                      // packet it needs to be in the entity
-                                      // stream so the other entities can be
-                                      // read by the remote peer in time
+              NETWORK_STREAM_ENTITY,  // even though this is technically a
+                                      // meta packet it needs to be in the
+                                      // entity stream so the other entities
+                                      // can be read by the remote peer in
+                                      // time
               newPeerPacket.createPacket(ENET_PACKET_FLAG_RELIABLE));
         }
         peer.second.noob = false;
@@ -846,7 +1041,7 @@ void NetworkManager::service() {
     }
 
     if (distributedTime > nextDtPacket) {
-      nextDtPacket += distributedTime + sv_dtrate.getFloat();
+      nextDtPacket = distributedTime + sv_dtrate.getFloat();
 
       BitStream timeStream;
       timeStream.write<PacketId>(DistributedTimePacket);
@@ -943,7 +1138,11 @@ void NetworkManager::service() {
         BitStream rconStream;
         rconStream.write<PacketId>(RconPacket);
         rconStream.writeString(command.first);
-        rconStream.writeString(command.second);
+
+        SignedMessage msg = getGame()->getSecurityManager()->sign(
+            std::vector<char>(command.second.begin(), command.second.end()));
+
+        rconStream.writeSignedMessage(msg);
         enet_peer_send(localPeer.peer, 0,
                        rconStream.createPacket(ENET_PACKET_FLAG_RELIABLE));
       }
@@ -961,10 +1160,28 @@ static CVar net_outbandwidth("net_outbandwidth", "0",
                              CVARF_SAVE | CVARF_GLOBAL);
 
 void NetworkManager::start(int port) {
+  std::scoped_lock l(crazyThingsMutex);
+
   if (host) {
     Log::printf(LOG_WARN, "Already hosting server, deleting old host");
     enet_host_destroy(host);
   }
+
+  if (rcon_password.getValue() == "RCON_DEBUG") {
+    Log::printf(LOG_WARN, "!!! rcon_password is RCON_DEBUG !!!");
+    Log::printf(LOG_WARN,
+                "It will become incredibly easy for unauthorized users to run "
+                "commands on the server.");
+    Log::printf(
+        LOG_WARN,
+        "If running this server on production, please change it immediately.");
+    Log::printf(LOG_WARN, "Setting it to a blank value will disable rcon.");
+  }
+
+#ifndef NDEBUG
+  Log::printf(LOG_WARN, "Do not use a debug build for a production server.");
+#endif
+
   ENetAddress address;
   address.host = ENET_HOST_ANY;
   address.port = port;
@@ -1000,6 +1217,7 @@ void NetworkManager::connect(std::string address, int port) {
   if (localPeer.peer == nullptr)
     throw std::runtime_error("enet_host_connect returned NULL");
 
+  localPeer.address = _address;
   localPeer.type = Peer::Undifferentiated;
   Log::printf(LOG_INFO, "Connecting to %s:%i", address.c_str(), port);
 }

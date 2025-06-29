@@ -126,7 +126,7 @@ void Camera::updateCamera(glm::vec2 framebufferSize) {
     switch (p) {
       case Perspective:
         pmatrix =
-            glm::perspective(fov * (M_PIf / 180.f),
+            glm::perspective(glm::radians(fov),
                              framebufferSize.x / framebufferSize.y, near, far);
         break;
       case Orthographic:
