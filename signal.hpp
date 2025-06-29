@@ -8,10 +8,6 @@
 
 #include "logging.hpp"
 
-#ifndef DISABLE_EASY_PROFILER
-#include <easy/profiler.h>
-#endif
-
 namespace rdm {
 typedef size_t ClosureId;
 

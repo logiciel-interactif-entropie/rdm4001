@@ -20,6 +20,11 @@
 #include <unistd.h>
 #endif
 
+#ifdef __HAIKU__
+#include <FindDirectory.h>
+#include <app/Application.h>
+#endif
+
 #include <string.h>
 
 namespace rdm {
@@ -39,8 +44,7 @@ bool Fun::preFlightChecks() {
 static CVar cl_username("cl_username", "", CVARF_GLOBAL | CVARF_SAVE);
 
 std::string Fun::getLocalDataDirectory() {
-#ifdef __linux
-
+#if defined(__linux)
   struct passwd* pw = getpwuid(getuid());
   std::string home = pw->pw_dir;
   std::string path = home + "/.local/share/rdm4001/";
@@ -60,6 +64,8 @@ std::string Fun::getLocalDataDirectory() {
     throw std::runtime_error("getLocalDataDirectory");
   }
   return path;
+#elif defined(__HAIKU__)
+
 #else
 #error getLocalDataDirectory unimplemented on current platform
 #endif
@@ -91,6 +97,8 @@ std::string Fun::getModuleName() {
   char buf[MAX_PATH];
   GetModuleFileNameA(nullptr, buf, MAX_PATH);
   return buf;
+#elif defined(__HAIKU__)
+  return "Generic";
 #else
   static_assert(false, "unrecognized platform");
 #endif
