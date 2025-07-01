@@ -11,6 +11,7 @@
 
 namespace rdm {
 class Game;
+class ResourceManager;
 namespace gfx {
 class Engine;
 };
@@ -19,6 +20,7 @@ class Engine;
 namespace rdm::gfx::gui {
 class NGui;
 class NGuiManager;
+class NGuiRenderer;
 
 typedef std::function<NGui*(NGuiManager* gui, gfx::Engine* engine)> GUICtor;
 class NGuiSingleton {
@@ -28,6 +30,22 @@ class NGuiSingleton {
   static NGuiSingleton* singleton();
 
   std::map<std::string, GUICtor> guiCtor;
+};
+
+class NGui {
+  NGuiManager* gui;
+  gfx::Engine* engine;
+
+ public:
+  NGui(NGuiManager* gui, gfx::Engine* engine);
+  virtual ~NGui() {};
+
+  Game* getGame();
+  gfx::Engine* getEngine();
+  ResourceManager* getResourceManager();
+  NGuiManager* getManager() { return gui; }
+
+  virtual void render(NGuiRenderer* renderer) = 0;
 };
 
 class NGuiManager {
@@ -54,6 +72,13 @@ class NGuiManager {
   NGuiManager(gfx::Engine* engine);
   void render();
 
+  template <typename T>
+  T* getGui() {
+    for (auto& [name, gui] : guis) {
+      if (T* t = dynamic_cast<T*>(gui)) return t;
+    }
+    throw std::runtime_error("Cast not found!!!");
+  }
   BaseBuffer* getSArrayBuf() { return squareArrayBuffer.get(); }
   BaseBuffer* getSElementBuf() { return squareElementBuffer.get(); }
   BaseArrayPointers* getSArrayPointers() { return squareArrayPointers.get(); }
@@ -101,20 +126,6 @@ class NGuiRenderer {
   gfx::Engine* getEngine() { return engine; }
 
   RenderList& getList() { return list; }
-};
-
-class NGui {
-  NGuiManager* gui;
-  gfx::Engine* engine;
-
- public:
-  NGui(NGuiManager* gui, gfx::Engine* engine);
-  virtual ~NGui() {};
-
-  Game* getGame();
-  gfx::Engine* getEngine();
-
-  virtual void render(NGuiRenderer* renderer) = 0;
 };
 
 template <typename T>

@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "game.hpp"
 #include "world.hpp"
 
 namespace rdm::network {
@@ -35,6 +36,8 @@ void Entity::precache(NetworkManager* manager) {}
 std::string Entity::getEntityInfo() { return ""; }
 
 Entity::~Entity() {}
+
+Entity* Entity::getRemoteEntity() {}
 
 World* Entity::getWorld() { return this->manager->getWorld(); }
 Game* Entity::getGame() { return this->manager->getGame(); }

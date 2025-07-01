@@ -8,6 +8,7 @@
 #include <world.hpp>
 
 #include "font.hpp"
+#include "game.hpp"
 #include "gfx/engine.hpp"
 #include "input.hpp"
 #include "ngui_window.hpp"
@@ -228,6 +229,10 @@ Game* NGui::getGame() { return engine->getWorld()->getGame(); }
 
 gfx::Engine* NGui::getEngine() { return engine; }
 
+ResourceManager* NGui::getResourceManager() {
+  return getGame()->getResourceManager();
+}
+
 #ifndef NDEBUG
 static CVar cl_showfps("cl_showfps", "1", CVARF_SAVE | CVARF_GLOBAL);
 #else
@@ -348,26 +353,4 @@ class FPSDisplay : public NGui {
 };
 
 NGUI_INSTANTIATOR(FPSDisplay);
-
-class CoolWindow : public NGuiWindow {
- public:
-  CoolWindow(NGuiManager* manager, Engine* engine)
-      : NGuiWindow(manager, engine) {
-    setTitle("Cool stuff you should check out");
-    open();
-  }
-
-  virtual void show(Render* renderer) {
-    for (int i = 0; i < 10; i++) renderer->text("%i", i);
-    renderer->text(
-        "superlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuper"
-        "longtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongt"
-        "extsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsu"
-        "perlongtextsuperlongtextsuperlongtextsuperlongtextsuperlongtextsuperlo"
-        "ngtextsuperlongtextsuperlongtextsuperlongtext");
-    renderer->button("Test me");
-  }
-};
-
-NGUI_INSTANTIATOR(CoolWindow);
 }  // namespace rdm::gfx::gui

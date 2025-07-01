@@ -258,8 +258,8 @@ void FpsController::physicsStep() {
       float dist =
           glm::distance(BulletHelpers::fromVector3(bodyTransform.getOrigin()),
                         networkPosition);
-      Log::printf(LOG_DEBUG, "Prediction diff: %f, accept: %f", dist,
-                  rigidBody->getLinearVelocity().length());
+      // Log::printf(LOG_DEBUG, "Prediction diff: %f, accept: %f", dist,
+      //             rigidBody->getLinearVelocity().length());
       if (dist > rigidBody->getLinearVelocity().length()) {
         bodyTransform.setOrigin(BulletHelpers::toVector3(networkPosition));
         rigidBody->setWorldTransform(bodyTransform);
@@ -271,7 +271,7 @@ void FpsController::physicsStep() {
 
         grounded ? moveGround(vel, wishdir) : moveAir(vel, wishdir);
       }
-      Log::printf(LOG_DEBUG, "%f %f %f", linvel.x(), linvel.y(), linvel.z());
+      // Log::printf(LOG_DEBUG, "%f %f %f", linvel.x(), linvel.y(), linvel.z());
     }
   }
 }

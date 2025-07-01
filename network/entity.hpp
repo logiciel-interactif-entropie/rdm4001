@@ -81,6 +81,13 @@ class Entity {
   NetworkManager* getManager() { return manager; }
   gfx::Engine* getGfxEngine();
 
+  // use only on local client when hosting
+  Entity* getRemoteEntity();
+  template <typename T>
+  T* getRemoteEntity() {
+    return dynamic_cast<T*>(getRemoteEntity());
+  };
+
   EntityId getEntityId() { return id; }
 
   static void precache(NetworkManager* manager);

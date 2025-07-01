@@ -10,6 +10,7 @@
 #include "gfx/gui/font.hpp"
 #include "gfx/gui/gui.hpp"
 #include "gfx/gui/ngui.hpp"
+#include "gfx/gui/ngui_window.hpp"
 #include "input.hpp"
 #include "network/network.hpp"
 #include "script/my_basic.h"
@@ -17,7 +18,39 @@
 namespace rdm {
 static CVar cl_nointro("cl_nointro", "0", CVARF_GLOBAL | CVARF_SAVE);
 
-struct MainMenuGui : public gfx::gui::NGui {
+class ConnectionGui : public gfx::gui::NGuiWindow {
+ public:
+  ConnectionGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
+      : gfx::gui::NGuiWindow(manager, engine) {
+    setTitle("Connection");
+  }
+
+  virtual void show(Render* render) {}
+};
+
+class ConnectingGui : public gfx::gui::NGuiWindow {
+ public:
+  ConnectingGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
+      : gfx::gui::NGuiWindow(manager, engine) {
+    setTitle("Connecting");
+  }
+
+  virtual void show(Render* render) {
+    render->text("Connecting to server...");
+    render->progressBar(fabsf((sinf(getEngine()->getTime()) * 0.5f) + 0.5f),
+                        1.0);
+    render->button("Give up");
+
+    if (getGame()->getWorld()->getNetworkManager()->getLocalPeer().type !=
+        network::Peer::Undifferentiated)
+      close();
+  }
+};
+
+NGUI_INSTANTIATOR(ConnectingGui);
+NGUI_INSTANTIATOR(ConnectionGui);
+
+class MainMenuGui : public gfx::gui::NGui {
   gfx::gui::Font* font;
 
   void renderMainMenu(gfx::gui::NGuiRenderer* renderer) {
@@ -42,7 +75,10 @@ struct MainMenuGui : public gfx::gui::NGui {
                       (renderer->getLastCommand()->getScale().value().x / 2.f),
                   0));
   }
-  void renderConnecting(gfx::gui::NGuiRenderer* renderer) {}
+
+  void renderConnecting(gfx::gui::NGuiRenderer* renderer) {
+    getManager()->getGui<ConnectingGui>()->open();
+  }
 
  public:
   MainMenuGui(gfx::gui::NGuiManager* gui, gfx::Engine* engine)

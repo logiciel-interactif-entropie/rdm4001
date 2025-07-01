@@ -21,6 +21,7 @@ bullet = dependency('Bullet')
 libsndfile = dependency('sndfile')
 curl = dependency('libcurl')
 readline = dependency('libeditline')
+mpv = dependency('mpv')
 
 common_proj = subproject('common')
 common_dep = common_proj.get_variable('libcommon_dep')
@@ -48,7 +49,7 @@ elif build_machine.system() == 'linux'
 endif
 
 inc = include_directories(inc_dirs)
-game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, curl, readline, libtomcrypt]
+game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, curl, readline, libtomcrypt, mpv]
 
 xtra_src = []
 

@@ -16,6 +16,7 @@
 #include "renderpass.hpp"
 #include "scheduler.hpp"
 #include "settings.hpp"
+#include "video.hpp"
 #include "viewport.hpp"
 #include "vk_context.hpp"
 #include "vk_device.hpp"
@@ -322,6 +323,7 @@ class RenderJob : public SchedulerJob {
 static CVar r_samples("r_samples", "1", CVARF_GLOBAL | CVARF_SAVE);
 
 Engine::Engine(World* world, void* hwnd) {
+  this->world = world;
   fullscreenSamples = r_samples.getInt();
   maxFbScale = 1.0;
   forcedAspect = 0.0;
@@ -338,6 +340,8 @@ Engine::Engine(World* world, void* hwnd) {
   textureCache.reset(new TextureCache(device.get()));
   materialCache.reset(new MaterialCache(device.get()));
   meshCache.reset(new MeshCache(this));
+  videoRenderer.reset(new VideoRenderer(this));
+  videoRenderer->play("ACoolVideo.mp4");
 
   clearColor = glm::vec3(0.3, 0.3, 0.3);
 
@@ -365,8 +369,6 @@ Engine::Engine(World* world, void* hwnd) {
   renderJob = world->getScheduler()->addJob(new RenderJob(this));
   world->stepped.listen([this] { stepped(); });
   isInitialized = false;
-
-  this->world = world;
 }
 
 void Engine::renderFullscreenQuad(
@@ -444,6 +446,10 @@ void Engine::render() {
 
   getRenderJob()->getProfiler().fun("Render");
 
+  videoRenderer->render();
+  device->setDepthState(BaseDevice::Disabled);
+  device->setCullState(BaseDevice::None);
+
   if (r_resource_menu.getBool())
     getWorld()->getGame()->getResourceManager()->imgui(this);
 
@@ -474,6 +480,7 @@ void Engine::render() {
 
   for (int i = 0; i < RenderPass::_Max; i++) {
     device->dbgPushGroup(passName[i]);
+    getRenderJob()->getProfiler().fun(passName[i]);
     switch ((RenderPass::Pass)i) {
       case RenderPass::HUD:
         getDevice()->clearDepth();
@@ -484,7 +491,6 @@ void Engine::render() {
       default:
         break;
     }
-    getRenderJob()->getProfiler().fun(passName[i]);
     passes[i].render(this);
     getRenderJob()->getProfiler().end();
     device->dbgPopGroup();
