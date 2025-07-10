@@ -25,6 +25,12 @@
 #include <app/Application.h>
 #endif
 
+#ifdef _WIN32
+#include <direct.h>
+#include <shlwapi.h>
+#include <windows.h>
+#endif
+
 #include <string.h>
 
 namespace rdm {
@@ -64,6 +70,12 @@ std::string Fun::getLocalDataDirectory() {
     throw std::runtime_error("getLocalDataDirectory");
   }
   return path;
+#elif defined(_WIN32)
+  if (!PathIsDirectoryA("localdata")) {
+    _mkdir("localdata/");
+    _mkdir("localdata/hosts");
+  }
+  return "localdata/";
 #elif defined(__HAIKU__)
 
 #else
@@ -94,8 +106,8 @@ std::string Fun::getModuleName() {
   std::ifstream("/proc/self/comm") >> sp;
   return sp;
 #elif defined(_WIN32)
-  char buf[MAX_PATH];
-  GetModuleFileNameA(nullptr, buf, MAX_PATH);
+  char buf[PATH_MAX];
+  GetModuleFileNameA(nullptr, buf, PATH_MAX);
   return buf;
 #elif defined(__HAIKU__)
   return "Generic";

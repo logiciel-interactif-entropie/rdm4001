@@ -40,19 +40,14 @@
 		{"ProgramName": "HeightmapTesselated"}
 	    ]
 	},
-	"BspBrush": {
-	    "Techniques": [
-		{"ProgramName": "BspBrush"}
-	    ]
-	},
-	"BspSky": {
-	    "Techniques": [
-		{"ProgramName": "BspSky"}
-	    ]
-	},
 	"Mesh": {
 	    "Techniques": [
 		{"ProgramName": "Mesh"}
+	    ]
+	},
+	"MeshSkinned": {
+	    "Techniques": [
+		{"ProgramName": "MeshSkinned"}
 	    ]
 	},
 	"RoadTripMap": {
@@ -80,11 +75,11 @@
 	"PostProcess1": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/post.fs.glsl"},
 	"RayMarch": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/ray_march.fs.glsl"},
 	"HeightmapTesselated": {"VSName": "engine/materials/heightmap.vs.glsl", "FSName": "engine/materials/heightmap.fs.glsl", "GSName": "engine/materials/heightmap.gs.glsl"},
-	"BspBrush": {"VSName": "engine/materials/bsp/brush.vs.glsl", "FSName": "engine/materials/bsp/brush.fs.glsl"},
-	"BspSky": {"VSName": "engine/materials/bsp/brush.vs.glsl", "FSName": "engine/materials/bsp/sky.fs.glsl"},
 	"Mesh": {"VSName": "engine/materials/mesh.vs.glsl", "FSName": "engine/materials/mesh.fs.glsl"},
+	"MeshSkinned": {"VSName": "engine/materials/mesh_skinned.vs.glsl", "FSName": "engine/materials/mesh.fs.glsl"},
 	"GaussianBlur": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/blur.fs.glsl"},
 	"RoadTripMap": {"VSName": "engine/materials/mesh.vs.glsl", "FSName": "engine/materials/rt/map.fs.glsl"},
 	"DbgPhysicsLine": {"VSName": "engine/materials/dbg/p_line.vs.glsl", "FSName": "engine/materials/dbg/p_line.fs.glsl"}
-    }
+    },
+    "Binary": "engine/materials/_materials.bin"
 }

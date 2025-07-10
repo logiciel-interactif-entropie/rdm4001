@@ -8,9 +8,11 @@
 #include "gl_types.hpp"
 #include "gui/ngui.hpp"
 #include "gui/ngui_window.hpp"
+#include "settings.hpp"
 #include "viewport.hpp"
 #include "world.hpp"
 namespace rdm::gfx {
+#ifdef RDM4001_FEATURE_MPV
 #ifndef RDM4001_FEATURE_GLMODERN
 #error Need GLModern support to use VideoRenderer
 #endif
@@ -26,25 +28,15 @@ static void mpv_event(void *ctx) {
 static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
   return SDL_GL_GetProcAddress(name);
 }
-
-class VideoRendererWindow : public gui::NGuiWindow {
- public:
-  VideoRendererWindow(gui::NGuiManager *manager, Engine *engine)
-      : NGuiWindow(manager, engine) {
-    open();
-  }
-
-  virtual void show(Render *render) {
-    render->image(glm::vec2(getEngine()->getVideoRenderer()->getVideoSize()),
-                  getEngine()->getVideoRenderer()->getTexture());
-    setSize(glm::vec2(getEngine()->getVideoRenderer()->getVideoSize()) +
-            glm::vec2(30, 15));
-  }
-};
-
-NGUI_INSTANTIATOR(VideoRendererWindow);
+#endif
 
 VideoRenderer::VideoRenderer(gfx::Engine *engine) : videoViewport(engine) {
+#ifdef RDM4001_FEATURE_MPV
+  if (Settings::singleton()->getCvar("r_api")->getValue() != "GLModern") {
+    Log::printf(LOG_WARN, "VideoRenderer disabled when r_api isnt GLModern");
+    return;
+  }
+
   this->engine = engine;
   handle = mpv_create();
   if (!handle) throw std::runtime_error("Could not create MPV context");
@@ -67,20 +59,28 @@ VideoRenderer::VideoRenderer(gfx::Engine *engine) : videoViewport(engine) {
     throw std::runtime_error("Could not initialize MPV GL context");
   mpv_set_wakeup_callback(handle, mpv_event, this);
   mpv_render_context_set_update_callback(renderer, mpv_event, this);
+#endif
 }
 
 VideoRenderer::~VideoRenderer() {
+#ifdef RDM4001_FEATURE_MPV
   mpv_render_context_free(renderer);
   mpv_destroy(handle);
+#endif
 }
 
 void VideoRenderer::play(const char *path) {
+#ifdef RDM4001_FEATURE_MPV
+  if (Settings::singleton()->getCvar("r_api")->getValue() != "GLModern") return;
   const char *cmd[] = {"loadfile", path, NULL};
   mpv_command_async(handle, 0, cmd);
   currentStatus = Status::Playing;
+#endif
 }
 
 void VideoRenderer::render() {
+#ifdef RDM4001_FEATURE_MPV
+  if (Settings::singleton()->getCvar("r_api")->getValue() != "GLModern") return;
   if (currentStatus == Status::Playing) {
     engine->getRenderJob()->getProfiler().fun("video renderer");
     if (nextFrame) {
@@ -121,6 +121,7 @@ void VideoRenderer::render() {
     }
     engine->getRenderJob()->getProfiler().end();
   }
+#endif
 }  // namespace rdm::gfx
 
 glm::ivec2 VideoRenderer::getVideoSize() {

@@ -119,6 +119,7 @@ void ResourceManager::imgui(gfx::Engine* engine) {
 
   if (!animator) {
     animator = new resource::Model::Animator();
+    animator->initBuffer(engine->getDevice());
   }
 
   gfx::Camera& cam = previewViewport->getCamera();

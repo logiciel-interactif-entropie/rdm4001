@@ -98,6 +98,7 @@ void Profiler::frame() {
 }
 
 void Profiler::fun(const char* name) {
+  if (!currentBlock) return;
   if (!profiler_enable.getBool()) return;
 
   Block b;
@@ -109,6 +110,7 @@ void Profiler::fun(const char* name) {
 }
 
 void Profiler::end() {
+  if (!currentBlock) return;
   if (!profiler_enable.getBool()) return;
 
   currentBlock->end = std::chrono::steady_clock::now() - frameStart;

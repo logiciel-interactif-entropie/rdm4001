@@ -1,4 +1,7 @@
 option('vcpkg', type: 'feature', value: 'disabled')
 option('graphics', type: 'feature', value: 'enabled')
-option('vulkan', type: 'feature', value: 'auto')
+option('vulkan', type: 'feature', value: 'disabled')
 option('openglmodern', type: 'feature', value: 'enabled')
+option('obz', type: 'feature', value: 'disabled')
+option('compile_experiments', type: 'feature', value: 'disabled')
+option('mpv', type: 'feature', value: 'auto')

@@ -18,8 +18,10 @@
 #include "settings.hpp"
 #include "video.hpp"
 #include "viewport.hpp"
+#ifdef RDM4001_FEATURE_VULKAN
 #include "vk_context.hpp"
 #include "vk_device.hpp"
+#endif
 #include "world.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -33,6 +35,8 @@ GFX_API_INSTANTIATOR(GLModern, gl::GLContext, gl::GLDevice);
 #ifdef RDM4001_FEATURE_VULKAN
 GFX_API_INSTANTIATOR(Vulkan, vk::VKContext, vk::VKDevice);
 #endif
+
+static CVar r_disablepost("r_disablepost", "0", CVARF_GLOBAL | CVARF_SAVE);
 
 TextureCache::TextureCache(BaseDevice* device) {
   this->device = device;
@@ -134,6 +138,7 @@ static CVar r_bloomamount("r_bloomamount", "10", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_rate("r_rate", "60.0", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_bloom("r_bloom", "1", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_scale("r_scale", "1.0", CVARF_SAVE | CVARF_GLOBAL);
+static CVar r_exposure("r_exposure", "1.0", CVARF_GLOBAL);
 
 class RenderJob : public SchedulerJob {
   Engine* engine;
@@ -183,25 +188,30 @@ class RenderJob : public SchedulerJob {
         engine->targetResolution = fbSizeF;
         settings.resolution = engine->targetResolution;
 
+        ViewportGfxSettings guiSettings = engine->guiViewport->getSettings();
+        guiSettings.resolution = engine->targetResolution;
+
         engine->initializeBuffers(bufSize, true);
         engine->viewport->updateSettings(settings);
+        engine->guiViewport->updateSettings(settings);
       }
 
       engine->getWorld()->getGame()->getResourceManager()->tickGfx(engine);
 
-      void* _ = engine->viewport->bind();
+      void* _;
+      if (!r_disablepost.getBool()) _ = engine->viewport->bind();
+
+      BaseFrameBuffer::AttachmentPoint drawBuffers[] = {
+          BaseFrameBuffer::Color0,
+          BaseFrameBuffer::Color1,
+      };
 
       {
-        BaseFrameBuffer::AttachmentPoint drawBuffers[] = {
-            BaseFrameBuffer::Color0,
-            BaseFrameBuffer::Color1,
-        };
-
         // clear buffers
         device->targetAttachments(&drawBuffers[0], 1);
         device->clear(engine->clearColor.x, engine->clearColor.y,
                       engine->clearColor.z, 0.0);
-        if (bloomEnabled) {
+        if (!r_disablepost.getBool() && bloomEnabled) {
           device->targetAttachments(&drawBuffers[1], 1);
           device->clear(0.0, 0.0, 0.0, 0.0);
 
@@ -226,12 +236,34 @@ class RenderJob : public SchedulerJob {
                     e.what());
       }
 
-      engine->viewport->unbind(_);
+      /* TODO: Auto exposure feature
+      struct {
+        char r, g, b, a;
+      } pixelData[100 * 100];
+      engine->getDevice()->readPixels((engine->targetResolution.x / 2.f) - 100,
+                                      (engine->targetResolution.y / 2.f) - 100,
+                                      100, 100, &pixelData);
+      float avg = 0.f;
+      for (int i = 0; i < 100; i++) {
+        for (int j = 0; j < 100; j++) {
+          int p = i + (j * 100);
+          float v = std::max(std::max(pixelData[p].r, pixelData[p].g),
+                             pixelData[p].b);
+          avg += v;
+        }
+      }
+      rdm::Log::printf(LOG_DEBUG, "%f", avg);
+      avg /= 100.f * 100.f;
+      float target = avg;
+      float old = r_exposure.getFloat();
+      */
+
+      if (!r_disablepost.getBool()) engine->viewport->unbind(_);
 
       device->setDepthState(BaseDevice::Always);
       device->setCullState(BaseDevice::None);
 
-      if (bloomEnabled) {
+      if (!r_disablepost.getBool() && bloomEnabled) {
         {
           profiler.fun("Post process: Bloom");
           bool horizontal = true, firstIteration = true;
@@ -268,29 +300,40 @@ class RenderJob : public SchedulerJob {
       device->viewport(0, 0, engine->windowResolution.x,
                        engine->windowResolution.y);
 
-      profiler.fun("Post process: Draw");
-      engine->renderFullscreenQuad(
-          engine->viewport->get(0), NULL, [this](BaseProgram* p) {
-            if (r_bloom.getBool())
+      if (!r_disablepost.getBool()) {
+        profiler.fun("Post process: Draw");
+        engine->renderFullscreenQuad(
+            engine->viewport->get(0), NULL, [this](BaseProgram* p) {
+              if (r_bloom.getBool())
+                p->setParameter(
+                    "texture1", DtSampler,
+                    BaseProgram::Parameter{
+                        .texture.slot = 1,
+                        .texture.texture = engine->pingpongTexture[1].get()});
               p->setParameter(
-                  "texture1", DtSampler,
+                  "texture2", DtSampler,
                   BaseProgram::Parameter{
                       .texture.slot = 1,
-                      .texture.texture = engine->pingpongTexture[1].get()});
-            p->setParameter(
-                "bloom", DtInt,
-                BaseProgram::Parameter{.integer = r_bloom.getBool()});
-            p->setParameter(
-                "target_res", DtVec2,
-                BaseProgram::Parameter{.vec2 = engine->targetResolution});
-            p->setParameter(
-                "window_res", DtVec2,
-                BaseProgram::Parameter{.vec2 = engine->windowResolution});
-            p->setParameter(
-                "forced_aspect", DtFloat,
-                BaseProgram::Parameter{.number = (float)engine->forcedAspect});
-          });
-      profiler.end();
+                      .texture.texture = engine->guiViewport->get()});
+              p->setParameter(
+                  "bloom", DtInt,
+                  BaseProgram::Parameter{.integer = r_bloom.getBool()});
+              p->setParameter(
+                  "target_res", DtVec2,
+                  BaseProgram::Parameter{.vec2 = engine->targetResolution});
+              p->setParameter(
+                  "window_res", DtVec2,
+                  BaseProgram::Parameter{.vec2 = engine->windowResolution});
+              p->setParameter("forced_aspect", DtFloat,
+                              BaseProgram::Parameter{
+                                  .number = (float)engine->forcedAspect});
+              p->setParameter(
+                  "exposure", DtFloat,
+                  BaseProgram::Parameter{
+                      .number = std::max(0.01f, r_exposure.getFloat())});
+            });
+        profiler.end();
+      }
     } catch (std::exception& e) {
       std::scoped_lock lock(engine->context->getMutex());
       Log::printf(LOG_ERROR, "Error in render: %s", e.what());
@@ -341,7 +384,6 @@ Engine::Engine(World* world, void* hwnd) {
   materialCache.reset(new MaterialCache(device.get()));
   meshCache.reset(new MeshCache(this));
   videoRenderer.reset(new VideoRenderer(this));
-  videoRenderer->play("ACoolVideo.mp4");
 
   clearColor = glm::vec3(0.3, 0.3, 0.3);
 
@@ -350,6 +392,11 @@ Engine::Engine(World* world, void* hwnd) {
   settings.msaaSamples = fullscreenSamples;
   settings.numColorBuffers = 2;  // color, bloom
   viewport.reset(new Viewport(this, settings));
+
+  settings.resolution = glm::ivec2(1, 1);
+  settings.msaaSamples = fullscreenSamples;
+  settings.numColorBuffers = 1;
+  guiViewport.reset(new Viewport(this, settings));
 
   fullscreenMaterial =
       materialCache->getOrLoad("PostProcess").value_or(nullptr);
@@ -446,10 +493,6 @@ void Engine::render() {
 
   getRenderJob()->getProfiler().fun("Render");
 
-  videoRenderer->render();
-  device->setDepthState(BaseDevice::Disabled);
-  device->setCullState(BaseDevice::None);
-
   if (r_resource_menu.getBool())
     getWorld()->getGame()->getResourceManager()->imgui(this);
 
@@ -481,20 +524,38 @@ void Engine::render() {
   for (int i = 0; i < RenderPass::_Max; i++) {
     device->dbgPushGroup(passName[i]);
     getRenderJob()->getProfiler().fun(passName[i]);
+    void* _;
     switch ((RenderPass::Pass)i) {
-      case RenderPass::HUD:
+      case RenderPass::HUD: {
+        _ = setViewport(guiViewport.get());
         getDevice()->clearDepth();
+        getDevice()->clear(0.f, 0.f, 0.f, 0.f);
         getDevice()->setDepthState(BaseDevice::Always);
         getDevice()->setBlendState(BaseDevice::SrcAlpha,
                                    BaseDevice::OneMinusSrcAlpha);
-        break;
+      } break;
       default:
         break;
     }
     passes[i].render(this);
     getRenderJob()->getProfiler().end();
     device->dbgPopGroup();
+
+    switch ((RenderPass::Pass)i) {
+      case RenderPass::Opaque:
+        afterOpaqueNTransparentRendered.fire();
+        break;
+      case RenderPass::HUD:
+        finishViewport(_);
+        break;
+      default:
+        break;
+    }
   }
+
+  device->setDepthState(BaseDevice::Disabled);
+  device->setCullState(BaseDevice::None);
+  videoRenderer->render();
 
   device->setDepthState(BaseDevice::Disabled);
   device->setCullState(BaseDevice::None);
@@ -555,7 +616,10 @@ void Engine::finishViewport(void* _) {
   if (currentViewport) {
     currentViewport->applyRenderState();
   } else {
-    viewport->applyRenderState();
+    if (r_disablepost.getBool()) {
+    } else {
+      viewport->applyRenderState();
+    }
   }
 }
 }  // namespace rdm::gfx

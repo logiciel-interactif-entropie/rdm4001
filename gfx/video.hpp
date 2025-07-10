@@ -1,6 +1,8 @@
 #pragma once
+#ifdef RDM4001_FEATURE_MPV
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
+#endif
 
 #include "base_device.hpp"
 #include "base_types.hpp"
@@ -13,8 +15,10 @@ class VideoRenderer {
   // std::unique_ptr<BaseTexture> videoTexture;
   Viewport videoViewport;
 
+#ifdef RDM4001_FEATURE_MPV
   mpv_handle* handle;
   mpv_render_context* renderer;
+#endif
 
   Engine* engine;
   bool nextFrame;

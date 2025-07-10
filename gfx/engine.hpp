@@ -66,6 +66,7 @@ class Engine {
   std::vector<std::unique_ptr<Entity>> entities;
 
   std::unique_ptr<Viewport> viewport;
+  std::unique_ptr<Viewport> guiViewport;
 
   std::unique_ptr<BaseBuffer> fullscreenBuffer;
   std::unique_ptr<BaseArrayPointers> fullScreenArrayPointers;
@@ -129,6 +130,7 @@ class Engine {
    * post-process framebuffer.
    */
   Signal<> renderStepped;
+  Signal<> afterOpaqueNTransparentRendered;
   Signal<> afterRenderStepped;
   Signal<> afterGuiRenderStepped;
   Signal<> afterDebugDrawRenderStepped;

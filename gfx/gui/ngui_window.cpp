@@ -1,5 +1,6 @@
 #include "ngui_window.hpp"
 
+#include <cmath>
 #include <cstdint>
 
 #include "font.hpp"
@@ -66,7 +67,29 @@ void NGuiWindow::Render::inputLine(char* out, size_t len,
     empty = true;
   }
 
-  glm::ivec2 bdim = glm::min(font->getTextSize(dpy), glm::ivec2(0, 16.f));
+  glm::vec2 res = window->size;
+  glm::ivec2 bdim = glm::max(font->getTextSize(dpy),
+                             glm::ivec2(res.x - (15.f * 2.f), INFINITY));
+  elemPos.y -= 16.f;
+
+  int mouseStatus = renderer->mouseDownZone(elemPos, bdim);
+  if (mouseStatus == 1) {
+    window->getManager()->setCurrentText(out, len);
+  } else if (window->getManager()->isCurrentText(out) && mouseStatus == -2) {
+    window->getManager()->setCurrentText(NULL, 0);
+  }
+
+  renderer->setColor(glm::vec3(0.2f));
+  renderer->image(engine->getWhiteTexture(), elemPos, glm::vec2(bdim));
+  if (window->getManager()->isCurrentText(out)) {
+    renderer->setColor(glm::vec3(1.0f));
+    renderer->text(elemPos - glm::vec2(8.f, 0.f), font, 0, ">");
+    renderer->text(elemPos, font, bdim.x, "%s", out);
+  } else {
+    renderer->setColor(empty ? glm::vec3(0.5f) : glm::vec3(1.0f));
+    renderer->text(elemPos, font, bdim.x, "%s", dpy);
+  }
+  pixels += bdim.y;
 }
 
 void NGuiWindow::Render::progressBar(float value, float max) {
@@ -89,6 +112,7 @@ bool NGuiWindow::Render::button(const char* text) {
   glm::vec2 p = elemPos;
   p.y -= bdim.y;
   int status = renderer->mouseDownZone(p, bdim);
+  bool value = false;
 
   switch (status) {
     default:
@@ -100,6 +124,7 @@ bool NGuiWindow::Render::button(const char* text) {
       break;
     case 1:
       renderer->setColor(glm::vec3(1.0));
+      value = true;
       break;
   }
   renderer->image(engine->getWhiteTexture(), p, bdim);
@@ -107,7 +132,7 @@ bool NGuiWindow::Render::button(const char* text) {
   renderer->text(p, font, 0, text);
   elemPos.y -= bdim.y;
   pixels += bdim.y;
-  return status;
+  return value;
 }
 
 void NGuiWindow::render(NGuiRenderer* renderer) {
@@ -140,7 +165,7 @@ void NGuiWindow::render(NGuiRenderer* renderer) {
                   glm::vec2(16.f, 16.f));
   if (renderer->mouseDownZone(position + glm::vec2(size.x - 16.f, size.y),
                               glm::vec2(16.f, 16.f)) == 1) {
-    visible = false;
+    close();
   }
 
   Render render(renderer, this, glm::vec2(15, 15));
@@ -157,5 +182,8 @@ void NGuiWindow::open() {
   visible = true;
 }
 
-void NGuiWindow::close() { visible = false; }
+void NGuiWindow::close() {
+  visible = false;
+  closing();
+}
 };  // namespace rdm::gfx::gui

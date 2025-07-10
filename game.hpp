@@ -29,11 +29,12 @@ class Game {
   SDL_Window* window;
   bool ignoreNextMouseMoveEvent;
   bool initialized;
+  bool silence;
   WorldConstructorSettings worldSettings;
   void updateIcon();
 
  public:
-  Game();
+  Game(bool silence = false);
   virtual ~Game();
 
   // start the game state mode

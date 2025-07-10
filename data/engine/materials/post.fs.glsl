@@ -5,8 +5,9 @@ out vec4 o_color;
 
 uniform sampler2DMS texture0;
 uniform sampler2DMS texture1;
+uniform sampler2DMS texture2;
 
-uniform float exposure = 1.0;
+uniform float exposure = 0.1;
 uniform float time;
 
 uniform int banding_effect = 0xff3;
@@ -59,8 +60,11 @@ void main() {
     vec3 bloom_color = texelFetch(texture1, uv, 0).rgb;
     base_color += bloom_color;
   }
+
   vec3 result = base_color.rgb;
-  // vec3 result = vec3(1.0) - exp(-base_color * exposure);
-  // result = pow(result, vec3(1.0 / gamma));
-  o_color = vec4(result, 1.0);
+  result = vec3(1.0) - exp(-result * exposure);
+  result = pow(result, vec3(1.0 / gamma));
+  vec4 gui = texelFetch(texture2, uv, 0);
+
+  o_color = ((1.0 - gui.a) * vec4(result, 1.0)) + (gui.a * gui);
 }

@@ -3,6 +3,10 @@
 #include "resource.hpp"
 
 namespace rdm::gfx::gui {
+class NGuiElement {
+ public:
+};
+
 class NGuiWindow : public NGui {
   glm::vec2 maxSize, minSize, size;
   glm::vec2 position;
@@ -48,9 +52,10 @@ class NGuiWindow : public NGui {
 
   void open();
   void close();
+  bool isVisible() { return visible; }
 
   virtual void show(Render* renderer) = 0;
-
+  virtual void closing() {};
   virtual void render(NGuiRenderer* renderer);
 };
 }  // namespace rdm::gfx::gui

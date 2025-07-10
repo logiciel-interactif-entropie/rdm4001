@@ -9,8 +9,8 @@ Camera::Camera() {
   target = glm::vec3(0, 2, 0);
   up = glm::vec3(0, 0, 1);
   fov = 90.f;
-  near = 1.f;
-  far = 65535.f;
+  nearPlane = 1.f;
+  farPlane = 65535.f;
   p = Perspective;
   leftHanded = false;
   pdirty = true;
@@ -125,9 +125,9 @@ void Camera::updateCamera(glm::vec2 framebufferSize) {
   if (pdirty || fbSize != framebufferSize) {
     switch (p) {
       case Perspective:
-        pmatrix =
-            glm::perspective(glm::radians(fov),
-                             framebufferSize.x / framebufferSize.y, near, far);
+        pmatrix = glm::perspective(glm::radians(fov),
+                                   framebufferSize.x / framebufferSize.y,
+                                   nearPlane, farPlane);
         break;
       case Orthographic:
         pmatrix = glm::ortho(0.f, 1.f, 0.f, 1.f);

@@ -50,12 +50,12 @@ class Camera {
     this->leftHanded = b;
     vdirty = true;
   }
-  void setNear(float near) {
-    this->near = near;
+  void setNear(float nearPlane) {
+    this->nearPlane = nearPlane;
     pdirty = true;
   }
-  void setFar(float far) {
-    this->far = far;
+  void setFar(float farPlane) {
+    this->farPlane = farPlane;
     pdirty = true;
   }
 
@@ -68,8 +68,8 @@ class Camera {
   glm::vec2 fbSize;
   Projection p;
   float fov;
-  float near;
-  float far;
+  float nearPlane;
+  float farPlane;
   glm::vec3 eye;
   glm::vec3 up;
   glm::vec3 target;

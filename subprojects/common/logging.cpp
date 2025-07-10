@@ -62,11 +62,20 @@ void Log::addLogMessage(LogMessage m) {
         lvl = "FATAL";
         break;
     }
+#ifndef _WIN32
 #ifndef NDEBUG
     ::printf("%s[%s:%i] %s: %s" COLOR_RESET "\n", clr, m.loc.file_name(),
              m.loc.line(), lvl, m.message.c_str());
 #else
     ::printf("%s%s" COLOR_RESET "\n", clr, m.message.c_str());
+#endif
+#else
+#ifndef NDEBUG
+    ::printf("[%s:%i] %s: %s\n", m.loc.file_name(), m.loc.line(), lvl,
+             m.message.c_str());
+#else
+    ::printf("%s\n", clr, m.message.c_str());
+#endif
 #endif
   }
 

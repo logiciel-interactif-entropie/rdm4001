@@ -19,13 +19,38 @@ namespace rdm {
 static CVar cl_nointro("cl_nointro", "0", CVARF_GLOBAL | CVARF_SAVE);
 
 class ConnectionGui : public gfx::gui::NGuiWindow {
+  char ipStr[64];
+  char portStr[7];
+
  public:
   ConnectionGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
       : gfx::gui::NGuiWindow(manager, engine) {
     setTitle("Connection");
+    memset(ipStr, 0, sizeof(ipStr));
+    memset(portStr, 0, sizeof(portStr));
   }
 
-  virtual void show(Render* render) {}
+  virtual void show(Render* render) {
+    render->text("IP");
+    render->inputLine(ipStr, sizeof(ipStr), "127.0.0.1");
+    render->text("Port");
+    render->inputLine(portStr, sizeof(portStr), "7938");
+    render->text(
+        "You are connecting as %s",
+        Settings::singleton()->getCvar("cl_username")->getValue().c_str());
+    if (render->button("Connect") == 1) {
+      std::string ip, stringPort;
+      strlen(ipStr) == 0 ? ip = "127.0.0.1" : ip = ipStr;
+      strlen(portStr) == 0 ? stringPort = "7938" : stringPort = portStr;
+      int port = std::atoi(stringPort.data());
+      getGame()->getWorld()->getNetworkManager()->connect(ip, port);
+      close();
+    }
+  }
+
+  virtual void closing() {
+    getGame()->getGameState()->setState(GameState::MainMenu);
+  }
 };
 
 class ConnectingGui : public gfx::gui::NGuiWindow {
@@ -47,33 +72,77 @@ class ConnectingGui : public gfx::gui::NGuiWindow {
   }
 };
 
+class PlayGameGui : public gfx::gui::NGuiWindow {
+ public:
+  PlayGameGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
+      : gfx::gui::NGuiWindow(manager, engine) {
+    setTitle("Play Game");
+  }
+
+  virtual void show(Render* render) {
+    if (render->button("Connect to server...") == 1) {
+      getManager()->getGui<ConnectionGui>()->open();
+      close();
+    }
+    if (render->button("Host a server...") == 1) {
+      close();
+    }
+  }
+
+  virtual void closing() {
+    if (!getManager()->getGui<ConnectionGui>()->isVisible()) {
+      getGame()->getGameState()->setState(GameState::MainMenu);
+    }
+  }
+};
+
 NGUI_INSTANTIATOR(ConnectingGui);
 NGUI_INSTANTIATOR(ConnectionGui);
+NGUI_INSTANTIATOR(PlayGameGui);
 
 class MainMenuGui : public gfx::gui::NGui {
   gfx::gui::Font* font;
 
   void renderMainMenu(gfx::gui::NGuiRenderer* renderer) {
     glm::vec2 res = getEngine()->getTargetResolution();
-    int numElements = 3;
     glm::vec2 spacePerElement = res;
-    spacePerElement.x /= numElements;
     int elems = 0;
-    renderer->text(glm::ivec2(0, 0), font, 0, "Play Game");
-    renderer->getLastCommand()->setOffset(
-        glm::vec2((spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
-                      (renderer->getLastCommand()->getScale().value().x / 2.f),
-                  0));
-    renderer->text(glm::ivec2(0, 0), font, 0, "Settings");
-    renderer->getLastCommand()->setOffset(
-        glm::vec2((spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
-                      (renderer->getLastCommand()->getScale().value().x / 2.f),
-                  0));
-    renderer->text(glm::ivec2(0, 0), font, 0, "Disconnect");
-    renderer->getLastCommand()->setOffset(
-        glm::vec2((spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
-                      (renderer->getLastCommand()->getScale().value().x / 2.f),
-                  0));
+    struct Entry {
+      std::string name;
+      GameState::States state;
+      gfx::gui::NGuiWindow* toOpen;
+    };
+    std::vector<Entry> states;
+    states.push_back((Entry){"Online Play", GameState::MenuOnlinePlay,
+                             getManager()->getGui<PlayGameGui>()});
+    states.push_back((Entry){"Settings", GameState::Todo, NULL});
+    states.push_back((Entry){"Quit", GameState::Todo, NULL});
+
+    spacePerElement.x /= states.size();
+
+    for (auto& state : states) {
+      switch (renderer->mouseDownZone(glm::vec2(spacePerElement.x * elems, 0),
+                                      glm::vec2(spacePerElement.x, 32.f))) {
+        default:
+        case -1:
+          renderer->setColor(glm::vec3(1));
+          break;
+        case 0:
+          renderer->setColor(glm::vec3(0.5));
+          break;
+        case 1:
+          renderer->setColor(glm::vec3(0.2));
+          getGame()->getGameState()->setState(state.state);
+          if (state.toOpen) state.toOpen->open();
+          break;
+      }
+      renderer->text(glm::ivec2(0, 0), font, 0, "%s", state.name.c_str());
+      glm::vec2 offset = glm::vec2(
+          (spacePerElement.x * elems++) + (spacePerElement.x / 2.f) -
+              (renderer->getLastCommand()->getScale().value().x / 2.f),
+          0);
+      renderer->getLastCommand()->setOffset(offset);
+    }
   }
 
   void renderConnecting(gfx::gui::NGuiRenderer* renderer) {
@@ -96,6 +165,10 @@ class MainMenuGui : public gfx::gui::NGui {
       case GameState::Connecting:
         renderConnecting(renderer);
         break;
+      case GameState::Todo:
+        renderer->text(glm::ivec2(0), font, 0,
+                       "TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        break;
       default:
         break;
     }
@@ -111,6 +184,7 @@ GameState::GameState(Game* game) {
   emitter = game->getSoundManager()->newEmitter();
   entropyLogo = game->getResourceManager()->load<resource::Model>(
       "engine/assets/entropy.obj");
+  stateMusic[Todo] = "engine/mus/todo.ogg";
 
   game->getGfxEngine()->initialized.listen([this, game] {});
 
@@ -121,6 +195,9 @@ GameState::GameState(Game* game) {
       case InGame:
         break;
       case MainMenu: {
+        renderMainMenu(game->getGfxEngine());
+      } break;
+      case Todo: {
       } break;
       case Intro: {
         Graph::Node node;
@@ -128,6 +205,7 @@ GameState::GameState(Game* game) {
         node.origin = glm::vec3(0);
         gfx::Camera& camera =
             game->getGfxEngine()->getCurrentViewport()->getCamera();
+        game->getGfxEngine()->setClearColor(glm::vec3(0));
         float time = game->getGfxEngine()->getTime();
         if (time < 1.0) {
           camera.setTarget(

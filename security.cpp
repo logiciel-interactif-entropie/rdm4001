@@ -28,7 +28,7 @@ void SecurityManager::generateKeyPair() {
   }
 
   unsigned char out[bitsize * 5 / 8];
-  size_t outlen = sizeof(out);
+  unsigned long outlen = sizeof(out);
   err = rsa_export(out, &outlen, PK_PRIVATE, &key);
   if (err != CRYPT_OK) {
     Log::printf(LOG_ERROR, "SecurityManager error: %s", error_to_string(err));
@@ -36,7 +36,7 @@ void SecurityManager::generateKeyPair() {
   }
 
   unsigned char b64_key[65535];
-  size_t ln = sizeof(b64_key);
+  unsigned long ln = sizeof(b64_key);
   err = base64_encode(out, outlen, b64_key, &ln);
   if (err != CRYPT_OK) {
     Log::printf(LOG_ERROR, "SecurityManager error: %s", error_to_string(err));
@@ -94,7 +94,7 @@ SecurityManager::SecurityManager() {
 
 bool SecurityManager::verify(SignedMessage msg, std::string _key) {
   unsigned char key_out[MAX_RSA_SIZE * 5 / 8];
-  size_t key_out_ln = sizeof(key_out);
+  unsigned long key_out_ln = sizeof(key_out);
   int err = base64_decode((unsigned char*)_key.c_str(), _key.size(), key_out,
                           &key_out_ln);
   if (err != CRYPT_OK) {
@@ -140,7 +140,7 @@ bool SecurityManager::verify(SignedMessage msg, std::string _key) {
 
 bool SecurityManager::verify(SignedMessage msg) {
   unsigned char key_out[MAX_RSA_SIZE * 5 / 8];
-  size_t key_out_ln = sizeof(key_out);
+  unsigned long key_out_ln = sizeof(key_out);
   int err = base64_decode((unsigned char*)msg.key.c_str(), msg.key.size(),
                           key_out, &key_out_ln);
   if (err != CRYPT_OK) {
@@ -196,7 +196,7 @@ SignedMessage SecurityManager::sign(char* in, size_t size) {
   hash_desc.done(&md, hash);
 
   unsigned char key_out[MAX_RSA_SIZE * 5 / 8];
-  size_t key_out_ln = sizeof(key_out);
+  unsigned long key_out_ln = sizeof(key_out);
   int err = base64_decode(
       (unsigned char*)security_private_key.getValue().c_str(),
       security_private_key.getValue().size(), key_out, &key_out_ln);
@@ -226,7 +226,7 @@ SignedMessage SecurityManager::sign(char* in, size_t size) {
   rsa_free(&key);
 
   unsigned char b64_out[65535];
-  size_t b64_len = sizeof(b64_out);
+  unsigned long b64_len = sizeof(b64_out);
   base64_encode(sig, siglen, b64_out, &b64_len);
   msg.sig = std::string((char*)b64_out);
   return msg;

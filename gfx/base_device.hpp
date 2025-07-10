@@ -69,6 +69,7 @@ class BaseDevice {
   virtual void setBlendState(BlendState a, BlendState b) = 0;
   virtual void setCullState(CullState s) = 0;
 
+  virtual void readPixels(int x, int y, int w, int h, void* d) = 0;
   /**
    * @brief Clears the color buffer of the current framebuffer.
    *

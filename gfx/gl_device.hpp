@@ -12,6 +12,8 @@ class GLDevice : public BaseDevice {
  public:
   GLDevice(GLContext* context);
 
+  virtual void readPixels(int x, int y, int w, int h, void* d);
+
   virtual void setDepthState(DepthStencilState s);
   virtual void setStencilState(DepthStencilState s);
   virtual void setBlendState(BlendState a, BlendState b);

@@ -18,6 +18,9 @@ GLDevice::GLDevice(GLContext* context) : BaseDevice(context) {
   currentFrameBuffer = 0;
   setUpImgui = false;
 }
+void GLDevice::readPixels(int x, int y, int w, int h, void* d) {
+  glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, d);
+}
 
 GLenum dssMapping[] = {GL_NEVER,  GL_ALWAYS,  GL_NEVER,    GL_LESS,  GL_EQUAL,
                        GL_LEQUAL, GL_GREATER, GL_NOTEQUAL, GL_GEQUAL};

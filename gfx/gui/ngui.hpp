@@ -68,6 +68,9 @@ class NGuiManager {
 
   glm::mat4 uiMatrix;
 
+  char* textInput;
+  size_t textInputBufSize;
+
  public:
   NGuiManager(gfx::Engine* engine);
   void render();
@@ -85,6 +88,9 @@ class NGuiManager {
   FontCache* getFontCache() { return fontCache.get(); }
   gfx::Material* getImageMaterial() { return image.get(); }
   glm::mat4 getUiMatrix() { return uiMatrix; }
+
+  void setCurrentText(char* t, size_t l);
+  bool isCurrentText(char* t) { return t == textInput; }
 
   struct TexOutData {
     gfx::BaseTexture* texture;

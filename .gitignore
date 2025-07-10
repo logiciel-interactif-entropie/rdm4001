@@ -11,3 +11,4 @@ docs
 compile_commands.json
 .cache
 .exclude
+_*.bin

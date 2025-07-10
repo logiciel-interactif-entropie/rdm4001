@@ -12,5 +12,5 @@ void main() {
   if (length(bgcolor) == 0.0)
     diffuseColor = o_color;
   else
-    diffuseColor = mix(bgcolor, vec4(o_color), o_color.a);
+    diffuseColor = ((1.0 - o_color.a) * bgcolor) + (o_color.a * o_color);
 }

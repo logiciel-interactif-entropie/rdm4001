@@ -1,4 +1,4 @@
-project('rdm4001', 'c', 'cpp', default_options: ['cpp_std=c++20'])
+project('rdm4001', 'c', 'cpp', default_options: ['cpp_std=c++20'], meson_version: '>=1.2.0')
 
 if get_option('vcpkg').enabled()
   vcpkg = find_program('vcpkg', required : true)
@@ -12,20 +12,18 @@ endif
 
 libtomcrypt = dependency('libtomcrypt', version: '>=1.18.2')
 sdl2 = dependency('sdl2')
-sdl2_ttf = dependency('sdl2_ttf')
-glm = dependency('glm')
+sdl2_ttf = dependency('SDL2_ttf')
 openal = dependency('openal')
 assimp = dependency('assimp')
 enet = dependency('libenet')
-bullet = dependency('Bullet')
+bullet = dependency('bullet')
 libsndfile = dependency('sndfile')
 curl = dependency('libcurl')
-readline = dependency('libeditline')
-mpv = dependency('mpv')
+mpv = dependency('mpv', required: get_option('mpv'))
 
 common_proj = subproject('common')
 common_dep = common_proj.get_variable('libcommon_dep')
-obz_proj = subproject('obz', required: false)
+obz_proj = subproject('obz', required: get_option('obz'))
 obz_options = []
 if not obz_proj.found()
   obz_dep = declare_dependency()
@@ -34,28 +32,51 @@ else
   obz_dep = obz_proj.get_variable('libobz_dep')
 endif
 
+shadercompiler_dep = subproject('shadercompiler')
+
 options = ['-DDISABLE_EASY_PROFILER']
 #options = []
 
 
 inc_dirs = ['.', 'gfx/imgui', 'subprojects/common']
 
+readline = dependency('', required: false)
+game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, openal, assimp, bullet, curl, libtomcrypt]
+
 # HACK because bullet cant find LinearMath without this
 if build_machine.system() == 'haiku'
   warning('Haiku experimental!')
   inc_dirs += ['/boot/system/develop/headers/bullet']
 elif build_machine.system() == 'linux'
-  inc_dirs += ['/usr/include/bullet']
+  if target_machine.system() == 'windows'
+    readline = dependency('wineditline')
+    inc_dirs += ['/ucrt64/include/bullet']
+  else
+    readline = dependency('libeditline')
+    inc_dirs += ['/usr/include/bullet']
+  endif
+elif build_machine.system() == 'windows'
+  readline = dependency('wineditline')
+endif
+game_deps += readline
+
+if target_machine.system() == 'windows'
+  cpp = meson.get_compiler('cpp')
+  game_deps += cpp.find_library('shlwapi', required: true)
+endif
+
+if mpv.found()
+  game_deps += mpv
+  add_project_arguments('-DRDM4001_FEATURE_MPV', language: ['cpp'])
 endif
 
 inc = include_directories(inc_dirs)
-game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, glm, openal, assimp, bullet, curl, readline, libtomcrypt, mpv]
 
 xtra_src = []
 
 if get_option('graphics').enabled()
   vulkan = dependency('vulkan', required: get_option('vulkan'))
-  if vulkan.found() and false
+  if vulkan.found() 
     game_deps += [vulkan]
     xtra_src += [
       'gfx/vk_context.cpp',
@@ -82,6 +103,8 @@ if get_option('graphics').enabled()
     ]
     add_project_arguments('-DRDM4001_FEATURE_GLMODERN', language: ['cpp'])
   endif
+
+  add_project_arguments('-DGRAPHICS_ENABLED', language: ['cpp'])
 endif
 
 gamelib = static_library('game', [ 
@@ -200,25 +223,37 @@ gamelib = static_library('game', [
 ], cpp_args: options + obz_options, include_directories: [inc], dependencies: game_deps)
 
 rdm4001_dep = declare_dependency(include_directories: inc,
-				 link_with: gamelib)
+				 link_with: gamelib,
+                                 dependencies: game_deps)
 
-executable('launcher', [
-  'launcher.cpp'
-], include_directories: [inc], dependencies: [common_dep], link_with: gamelib)
+suite = executable('testsuite',
+           [ 'test/main.cpp',
+           'test/testsystem.cpp',
+           'test/testsystem.hpp',
+           'test/testgame.cpp',
+           'test/testgame.hpp',
+           
+           'test/render.cpp',
+           ],
+           dependencies: [rdm4001_dep], link_with: gamelib)
+test('Base', suite, args: ['--group=Base'])
+test('Render', suite, args: ['--group=Render'])
 
-executable('raymarcher', [
-  'raymarcher/main.cpp',
-  'raymarcher/rgame.hpp',
-  'raymarcher/rgame.cpp'
-], include_directories: [inc], dependencies: [common_dep, sdl2, glm], link_with: gamelib)
+if get_option('compile_experiments').enabled()
+  executable('raymarcher', [
+    'raymarcher/main.cpp',
+    'raymarcher/rgame.hpp',
+    'raymarcher/rgame.cpp'
+  ], include_directories: [inc], dependencies: [common_dep, sdl2], link_with: gamelib)
 
-b3geometry_dep = declare_dependency(link_args : ['-lBullet3Geometry', '-lBullet3Common'] ) 
-executable('roadtrip', [
-  'roadtrip/main.cpp',
-  'roadtrip/roadtrip.hpp',
-  'roadtrip/roadtrip.cpp',
-  'roadtrip/america.hpp',
-  'roadtrip/america.cpp',
-  'roadtrip/pawn.hpp',
-  'roadtrip/pawn.cpp',
-], cpp_args: options, include_directories: [inc], dependencies: [common_dep, sdl2, glm, b3geometry_dep], link_with: gamelib)
+  b3geometry_dep = declare_dependency(link_args : ['-lBullet3Geometry', '-lBullet3Common'] ) 
+  executable('roadtrip', [
+    'roadtrip/main.cpp',
+    'roadtrip/roadtrip.hpp',
+    'roadtrip/roadtrip.cpp',
+    'roadtrip/america.hpp',
+    'roadtrip/america.cpp',
+    'roadtrip/pawn.hpp',
+    'roadtrip/pawn.cpp',
+  ], cpp_args: options, include_directories: [inc], dependencies: [common_dep, sdl2, b3geometry_dep], link_with: gamelib)
+endif 

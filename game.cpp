@@ -19,6 +19,7 @@
 #include "SDL_stdinc.h"
 #include "SDL_surface.h"
 #include "defs.hpp"
+#include "filesystem.hpp"
 #include "fun.hpp"
 #include "gfx/apis.hpp"
 #include "gfx/gl_context.hpp"
@@ -31,7 +32,6 @@
 #include "script/script.hpp"
 #include "security.hpp"
 #include "settings.hpp"
-#include "subprojects/common/filesystem.hpp"
 
 #ifdef __linux
 #include <signal.h>
@@ -48,10 +48,11 @@ static CVar cl_savedwindowsize("cl_savedwindowsize", "800 600",
 static CVar cl_savedwindowpos("cl_savedwindowpos", "-1 -1",
                               CVARF_SAVE | CVARF_GLOBAL);
 
-Game::Game() {
+Game::Game(bool silence) {
   if (!Fun::preFlightChecks()) abort();  // clearly not safe to run
+  this->silence = silence;
 
-  Log::printf(LOG_INFO, "Hello World!");
+  if (!silence) Log::printf(LOG_INFO, "Hello World!");
 
   ignoreNextMouseMoveEvent = false;
 
@@ -68,9 +69,11 @@ Game::Game() {
   cl_loglevel.changing.listen(
       [] { Log::singleton()->setLevel((LogType)cl_loglevel.getInt()); });
 
-  Log::printf(LOG_INFO, "RDM engine version %06x", ENGINE_VERSION);
-  Log::printf(LOG_INFO, "RDM protocol version %06x", PROTOCOL_VERSION);
-  if (cl_copyright.getBool()) Log::printf(LOG_INFO, "%s", copyright());
+  if (!silence) {
+    Log::printf(LOG_INFO, "RDM engine version %06x", ENGINE_VERSION);
+    Log::printf(LOG_INFO, "RDM protocol version %06x", PROTOCOL_VERSION);
+    if (cl_copyright.getBool()) Log::printf(LOG_INFO, "%s", copyright());
+  }
 
   iconImg = "dat0/icon.png";
   dirtyIcon = true;
@@ -170,8 +173,11 @@ void Game::startClient() {
     world->getNetworkManager()->setGfxEngine(gfxEngine.get());
     world->getNetworkManager()->setGame(this);
   }
-  world->changingTitle.listen(
-      [this](std::string title) { SDL_SetWindowTitle(window, title.c_str()); });
+  world->changingTitle.listen([this](std::string title) {
+#ifndef _WIN32
+    SDL_SetWindowTitle(window, title.c_str());
+#endif
+  });
 
   console.reset(new Console(this));
 

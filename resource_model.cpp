@@ -253,9 +253,17 @@ void Model::onLoadData(common::OptionalData data) {
     std::string dir = getName().substr(0, getName().find_last_of('/') + 1);
     AssimpIOSystem* system = new AssimpIOSystem(dir);
     importer.SetIOHandler(system);
+#ifdef _WIN32
+    char xtnsion[64];
+    wcstombs(xtnsion, path.extension().c_str(), sizeof(xtnsion));
+    scene = importer.ReadFileFromMemory(
+        data->data(), data->size(), aiProcess_Triangulate | aiProcess_FlipUVs,
+        xtnsion);
+#else
     scene = importer.ReadFileFromMemory(
         data->data(), data->size(), aiProcess_Triangulate | aiProcess_FlipUVs,
         path.extension().c_str());
+#endif
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
         !scene->mRootNode) {
       Log::printf(LOG_ERROR, "Assimp import error: %s",

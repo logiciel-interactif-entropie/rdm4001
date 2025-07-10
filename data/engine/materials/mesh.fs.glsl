@@ -18,14 +18,20 @@ struct light {
 
 uniform float shininess = 0.0;
 uniform vec3 view_position;
-uniform vec3 sun_direction = vec3(-0.5, 0.5, 0.5);
+uniform mat4 model = mat4(1);
+uniform vec3 sun_direction = vec3(0.5, 0.5, 0.5);
+
+uniform sampler2D diffuse;
 
 void main() {
   vec3 i = normalize(v_fmpos - view_position);
   vec3 r = reflect(i, normalize(v_fnormal));
 
-  float intensity = dot(v_fnormal, normalize(sun_direction));
-  vec3 result = vec3(0.5, 0.5, 0.5) + vec3(0.5, 0.5, 0.5) * intensity;
+  vec4 diffuseColor = texture(diffuse, v_fuv);
+
+  float intensity =
+      dot(v_fnormal, normalize((vec4(sun_direction, 0.0) * model).xyz));
+  vec3 result = vec3(0.1, 0.1, 0.1) + diffuseColor.rgb * intensity;
   float brightness = dot(result, vec3(0.2126, 0.7152, 0.0722));
   f_color = vec4(result, 1.0);
   f_bloom = vec4(f_color.rgb * brightness, 1.0);

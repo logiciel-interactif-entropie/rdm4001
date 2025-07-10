@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 
+#include "gfx/engine.hpp"
 #include "resource.hpp"
 #include "sound.hpp"
 namespace rdm {
@@ -21,6 +22,7 @@ class GameState {
     MenuOnlinePlay,
     InGame,
     Connecting,
+    Todo,
   };
 
   std::map<States, std::string> stateMusic;
@@ -32,6 +34,8 @@ class GameState {
   }
 
   States getState() { return state; }
+
+  virtual void renderMainMenu(gfx::Engine* engine) {};
 
  private:
   States state;

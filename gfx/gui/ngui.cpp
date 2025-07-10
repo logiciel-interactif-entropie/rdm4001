@@ -49,10 +49,21 @@ NGuiManager::NGuiManager(gfx::Engine* engine) {
   squareArrayPointers->addAttrib(BaseArrayPointers::Attrib(
       DtFloat, 0, 2, sizeof(float) * 2, 0, squareArrayBuffer.get()));
   squareArrayPointers->upload();
+
+  textInput = NULL;
 }
 
 void NGuiManager::render() {
   engine->getRenderJob()->getProfiler().fun("ngui compose");
+  std::string& tin = Input::singleton()->getEditedText();
+  if (textInput) {
+    if (tin.size() >= textInputBufSize - 1) {
+      tin = tin.substr(0, textInputBufSize - 1);
+    }
+    memset(textInput, 0, textInputBufSize);
+    strncpy(textInput, tin.data(), textInputBufSize);
+  }
+
   int texNum = 0;
   std::vector<NGuiRenderer*> renderers;
   for (auto [name, gui] : guis) {
@@ -149,6 +160,8 @@ std::pair<int, int> NGuiRenderer::text(glm::ivec2 position, Font* font,
   char buf[2048];
   vsnprintf(buf, 2048, text, ap);
 
+  if (strlen(buf) == 0) strcpy(buf, " ");
+
   std::pair<int, int> out;
   NGuiManager::TexOutData d =
       manager->getTextTexture(texNum, font, maxWidth, buf);
@@ -209,15 +222,28 @@ int NGuiRenderer::mouseDownZone(glm::vec2 pos, glm::vec2 size) {
   glm::vec2 mp = Input::singleton()->getMousePosition();
   glm::vec2 res = getEngine()->getTargetResolution();
 
+  bool oob = false;
+
   mp.y = res.y - mp.y;
-  if (mp.x < pos.x) return -1;
-  if (mp.x > pos.x + size.x) return -1;
-  if (mp.y < pos.y) return -1;
-  if (mp.y > pos.y + size.y) return -1;
+  if (mp.x < pos.x) oob = true;
+  if (mp.x > pos.x + size.x) oob = true;
+  if (mp.y < pos.y) oob = true;
+  if (mp.y > pos.y + size.y) oob = true;
   for (int i = 0; i < 3; i++) {
-    if (Input::singleton()->isMouseButtonDown(i)) return i;
+    if (Input::singleton()->isMouseButtonDown(i)) return oob ? -(i + 1) : i;
   }
-  return 0;
+  return oob ? -1 : 0;
+}
+
+void NGuiManager::setCurrentText(char* t, size_t l) {
+  textInput = t;
+  textInputBufSize = l;
+  if (textInput) {
+    Input::singleton()->startEditingText();
+    Input::singleton()->getEditedText() = textInput;
+  } else {
+    Input::singleton()->stopEditingText();
+  }
 }
 
 NGui::NGui(NGuiManager* gui, gfx::Engine* engine) {
