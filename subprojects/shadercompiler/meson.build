@@ -2,7 +2,8 @@ project('shadercompiler', 'cpp')
 
 shaderc = dependency('shaderc')
 
-executable('shadercompiler', [
+exec = executable('shadercompiler', [
   'shadercompiler.cpp',
   'json.hpp'
 ], dependencies: shaderc)
+

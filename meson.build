@@ -32,8 +32,6 @@ else
   obz_dep = obz_proj.get_variable('libobz_dep')
 endif
 
-shadercompiler_dep = subproject('shadercompiler')
-
 options = ['-DDISABLE_EASY_PROFILER']
 #options = []
 
@@ -105,6 +103,15 @@ if get_option('graphics').enabled()
   endif
 
   add_project_arguments('-DGRAPHICS_ENABLED', language: ['cpp'])
+
+  shadercompiler_project = subproject('shadercompiler')
+  shadercompiler = shadercompiler_project.get_variable('exec')
+  custom_target('compile shaders',
+                depends: shadercompiler,
+                input: 'data/engine/materials/materials.json',
+                output: 'fake',
+                command: [shadercompiler, '../data', 'engine/materials/materials.json'],
+                build_by_default: true)
 endif
 
 gamelib = static_library('game', [ 
