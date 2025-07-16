@@ -86,7 +86,6 @@ World::World(WorldConstructorSettings settings) {
   scheduler->addJob(new WorldJob(this));
   scheduler->addJob(new WorldTitleJob(this));
 
-  scriptContext.reset(new script::Context(this));
   if (settings.physics) physics.reset(new PhysicsWorld(this));
   if (settings.network) networkManager.reset(new network::NetworkManager(this));
 

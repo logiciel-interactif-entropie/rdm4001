@@ -138,7 +138,8 @@ static CVar r_bloomamount("r_bloomamount", "10", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_rate("r_rate", "60.0", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_bloom("r_bloom", "1", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_scale("r_scale", "1.0", CVARF_SAVE | CVARF_GLOBAL);
-static CVar r_exposure("r_exposure", "1.0", CVARF_GLOBAL);
+static CVar r_exposure("r_exposure", "0.0", CVARF_GLOBAL);
+static CVar r_samples("r_samples", "1", CVARF_GLOBAL | CVARF_SAVE);
 
 class RenderJob : public SchedulerJob {
   Engine* engine;
@@ -306,12 +307,12 @@ class RenderJob : public SchedulerJob {
             engine->viewport->get(0), NULL, [this](BaseProgram* p) {
               if (r_bloom.getBool())
                 p->setParameter(
-                    "texture1", DtSampler,
+                    r_samples.getInt() ? "texture1ms" : "texture1", DtSampler,
                     BaseProgram::Parameter{
                         .texture.slot = 1,
                         .texture.texture = engine->pingpongTexture[1].get()});
               p->setParameter(
-                  "texture2", DtSampler,
+                  r_samples.getInt() ? "texture2ms" : "texture2", DtSampler,
                   BaseProgram::Parameter{
                       .texture.slot = 1,
                       .texture.texture = engine->guiViewport->get()});
@@ -329,8 +330,10 @@ class RenderJob : public SchedulerJob {
                                   .number = (float)engine->forcedAspect});
               p->setParameter(
                   "exposure", DtFloat,
-                  BaseProgram::Parameter{
-                      .number = std::max(0.01f, r_exposure.getFloat())});
+                  BaseProgram::Parameter{.number = r_exposure.getFloat()});
+              p->setParameter(
+                  "samples", DtInt,
+                  BaseProgram::Parameter{.integer = r_samples.getInt()});
             });
         profiler.end();
       }
@@ -339,17 +342,11 @@ class RenderJob : public SchedulerJob {
       Log::printf(LOG_ERROR, "Error in render: %s", e.what());
     }
 
-    profiler.fun("GUI render");
-
-    engine->gui->render();
-
     engine->device->stopImGui();
 
     engine->imguiLock.unlock();
 
     engine->afterGuiRenderStepped.fire();
-
-    profiler.end();
 
     profiler.fun("Swap buffers");
 
@@ -362,8 +359,6 @@ class RenderJob : public SchedulerJob {
     return Stepped;
   }
 };
-
-static CVar r_samples("r_samples", "1", CVARF_GLOBAL | CVARF_SAVE);
 
 Engine::Engine(World* world, void* hwnd) {
   this->world = world;
@@ -426,7 +421,7 @@ void Engine::renderFullscreenQuad(
   if (fullscreenProgram) {
     if (texture)
       fullscreenProgram->setParameter(
-          "texture0", DtSampler,
+          texture->isMultisampled() ? "texture0ms" : "texture0", DtSampler,
           BaseProgram::Parameter{.texture.slot = 0,
                                  .texture.texture = texture});
     setParameters(fullscreenProgram);
@@ -578,7 +573,6 @@ void Engine::render() {
 }
 
 void Engine::initialize() {
-  gui = std::unique_ptr<gui::GuiManager>(new gui::GuiManager(this));
   ngui = std::unique_ptr<gui::NGuiManager>(new gui::NGuiManager(this));
   isInitialized = true;
 

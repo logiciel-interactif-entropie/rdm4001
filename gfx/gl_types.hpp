@@ -9,6 +9,7 @@ GLenum fromDataType(DataType t);
 class GLTexture : public BaseTexture {
   GLuint texture;
   GLuint renderbuffer;
+  bool multisampled;
   bool isRenderBuffer;
 
  public:
@@ -20,6 +21,7 @@ class GLTexture : public BaseTexture {
   GLuint getRbId() { return renderbuffer; }
 
   bool getIsRenderBuffer() { return isRenderBuffer; }
+  virtual bool isMultisampled() { return multisampled; }
 
   static GLenum texType(Type type);
   static GLenum texFormat(Format format);

@@ -11,6 +11,7 @@
 #include "game.hpp"
 #include "gfx/engine.hpp"
 #include "input.hpp"
+#include "ngui_elements.hpp"
 #include "ngui_window.hpp"
 #include "settings.hpp"
 
@@ -379,4 +380,39 @@ class FPSDisplay : public NGui {
 };
 
 NGUI_INSTANTIATOR(FPSDisplay);
+
+#ifdef MAKE_COOL_WINDOW
+class CoolWindow : public NGuiWindow {
+ public:
+  CoolWindow(NGuiManager* gui, gfx::Engine* engine) : NGuiWindow(gui, engine) {
+    setTitle("Cool window");
+
+    TextLabel* label0 = new TextLabel(gui);
+    label0->setText("Hello world");
+    addElement(label0);
+
+    Button* button0 = new Button(gui);
+    button0->setText("Okay");
+    button0->setPressed(std::bind(&CoolWindow::pressed, this));
+    addElement(button0);
+
+    NGuiPanel* panel0 = new NGuiPanel(gui);
+    panel0->setLayout(new NGuiHorizontalLayout());
+    addElement(panel0);
+
+    TextLabel* label1 = new TextLabel(gui);
+    label1->setText("Haha ");
+    panel0->addElement(label1);
+
+    TextLabel* label2 = new TextLabel(gui);
+    label2->setText("Friend ");
+    panel0->addElement(label2);
+
+    open();
+  }
+
+  void pressed() { Log::printf(LOG_DEBUG, "HI"); }
+};
+NGUI_INSTANTIATOR(CoolWindow);
+#endif
 }  // namespace rdm::gfx::gui

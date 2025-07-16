@@ -3,14 +3,18 @@
 in vec2 f_uv;
 out vec4 o_color;
 
-uniform sampler2DMS texture0;
-uniform sampler2DMS texture1;
-uniform sampler2DMS texture2;
+uniform sampler2DMS texture0ms;
+uniform sampler2D texture0;
+uniform sampler2DMS texture1ms;
+uniform sampler2D texture1;
+uniform sampler2DMS texture2ms;
+uniform sampler2D texture2;
 
 uniform float exposure = 0.1;
 uniform float time;
 
 uniform int banding_effect = 0xff3;
+uniform int samples = 0;
 uniform vec2 target_res;
 uniform float forced_aspect;
 uniform vec2 window_res;
@@ -54,17 +58,30 @@ void main() {
       (texelFetch(texture0, uv, 0) + texelFetch(texture0, uv, 1) +
        texelFetch(texture0, uv, 2) + texelFetch(texture0, uv, 3)) /
       4;*/
-  vec3 base_color = texelFetch(texture0, uv, 0).rgb;
 
-  if (bloom) {
-    vec3 bloom_color = texelFetch(texture1, uv, 0).rgb;
-    base_color += bloom_color;
+  vec3 base_color;
+  vec4 gui;
+  vec3 bloom_color = vec3(0.0);
+  if (samples != 0) {
+    base_color = texelFetch(texture0ms, uv, 0).rgb;
+    if (bloom) {
+      bloom_color = texelFetch(texture1ms, uv, 0).rgb;
+    }
+    gui = texelFetch(texture2ms, uv, 0);
+  } else {
+    base_color = texture(texture0, f_uv).rgb;
+    if (bloom) {
+      bloom_color = texture(texture1, f_uv).rgb;
+    }
+    gui = texture(texture2, f_uv);
   }
+  base_color += bloom_color;
 
   vec3 result = base_color.rgb;
-  result = vec3(1.0) - exp(-result * exposure);
-  result = pow(result, vec3(1.0 / gamma));
-  vec4 gui = texelFetch(texture2, uv, 0);
+  if (exposure != 0.0) {
+    result = vec3(1.0) - exp(-result * exposure);
+    result = pow(result, vec3(1.0 / gamma));
+  }
 
   o_color = ((1.0 - gui.a) * vec4(result, 1.0)) + (gui.a * gui);
 }

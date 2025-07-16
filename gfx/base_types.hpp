@@ -28,6 +28,12 @@ enum DataType {
   DtBufferSub,
 };
 
+enum ShaderBinaryType {
+  GlslPreprocessed,
+  GlslSpirVBinary,
+  __Max,
+};
+
 class BaseTexture {
  public:
   enum Type {
@@ -99,6 +105,7 @@ class BaseTexture {
   InternalFormat getInternalFormat() { return textureFormat; }
 
   virtual ImTextureID getImTextureId() { return 0; };
+  virtual bool isMultisampled() { return false; }
 
   bool isReserve() { return reserve; };
 
@@ -116,6 +123,7 @@ class BaseTexture {
 struct ShaderFile {
   std::string code;
   std::string name;
+  ShaderBinaryType type;
 };
 
 /**

@@ -1,8 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
 
-#include "gfx/gui/gui.hpp"
-
 namespace rdm::gfx {
 struct Frustrum {
   enum Plane { Back, Front, Right, Left, Top, Bottom, _Max };

@@ -9,7 +9,6 @@
 #include "network/network.hpp"
 #include "physics.hpp"
 #include "scheduler.hpp"
-#include "script/context.hpp"
 
 namespace rdm {
 class Game;
@@ -36,7 +35,6 @@ class World {
   std::unique_ptr<PhysicsWorld> physics;
   std::unique_ptr<network::NetworkManager> networkManager;
   std::unique_ptr<Scheduler> scheduler;
-  std::unique_ptr<script::Context> scriptContext;
   void* user;
   Game* game;
   std::string title;
@@ -59,7 +57,6 @@ class World {
   void setTitle(std::string title);
 
   Game* getGame() { return game; }
-  script::Context* getScriptContext() { return scriptContext.get(); }
   Scheduler* getScheduler() { return scheduler.get(); }
   PhysicsWorld* getPhysicsWorld() { return physics.get(); }
   network::NetworkManager* getNetworkManager() { return networkManager.get(); }

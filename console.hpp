@@ -4,7 +4,6 @@
 #include <string>
 
 #include "gfx/base_types.hpp"
-#include "gfx/gui/gui.hpp"
 #include "resource.hpp"
 
 namespace rdm {
@@ -29,7 +28,6 @@ class Console {
 
   Game* game;
 
-  void render();
   void tick();
 
  public:

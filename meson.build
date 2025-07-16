@@ -110,7 +110,7 @@ if get_option('graphics').enabled()
                 depends: shadercompiler,
                 input: 'data/engine/materials/materials.json',
                 output: 'fake',
-                command: [shadercompiler, '../data', 'engine/materials/materials.json'],
+                command: [shadercompiler, '../data', 'engine/materials/materials.json', '../data/engine/materials/'],
                 build_by_default: true)
 endif
 
@@ -150,15 +150,6 @@ gamelib = static_library('game', [
   'fun.cpp',
   'fun.hpp',
 
-  'script/api.cpp',
-  'script/api.hpp',
-  'script/my_basic.c',
-  'script/my_basic.h',
-  'script/script.cpp',
-  'script/script.hpp',
-  'script/context.cpp',
-  'script/context.hpp',
-
   'putil/fpscontroller.cpp',
   'putil/fpscontroller.hpp',
 
@@ -178,14 +169,12 @@ gamelib = static_library('game', [
   'gfx/base_types.cpp',
   'gfx/base_types.hpp',
 
-  'gfx/gui/api.cpp',
-  'gfx/gui/api.hpp',
-  'gfx/gui/gui.cpp',
-  'gfx/gui/gui.hpp',
   'gfx/gui/ngui.cpp',
   'gfx/gui/ngui.hpp',
   'gfx/gui/ngui_window.cpp',
   'gfx/gui/ngui_window.hpp',
+  'gfx/gui/ngui_elements.cpp',
+  'gfx/gui/ngui_elements.hpp',
   'gfx/gui/font.cpp',
   'gfx/gui/font.hpp',
 

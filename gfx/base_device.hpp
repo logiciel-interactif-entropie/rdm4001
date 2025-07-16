@@ -208,5 +208,7 @@ class BaseDevice {
 
   virtual void dbgPushGroup(std::string message) = 0;
   virtual void dbgPopGroup() = 0;
+
+  virtual ShaderBinaryType getPreferedShaderType() { return GlslPreprocessed; }
 };
 };  // namespace rdm::gfx

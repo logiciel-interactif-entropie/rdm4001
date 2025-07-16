@@ -8,7 +8,9 @@
 #include "gfx/base_types.hpp"
 #include "gfx/engine.hpp"
 #include "gfx/gui/font.hpp"
-#include "gfx/gui/gui.hpp"
+#include "gfx/gui/ngui.hpp"
+#include "gfx/gui/ngui_elements.hpp"
+#include "gfx/gui/ngui_window.hpp"
 #include "input.hpp"
 #include "logging.hpp"
 #include "resource.hpp"
@@ -34,13 +36,60 @@ ConsoleData* getCData() {
 
 #define CONSOLE_FONT "engine/gui/monospace.ttf"
 #define CONSOLE_SIZE 18
+class ConsoleWindow : public gfx::gui::NGuiWindow {
+  gfx::gui::TextLabel* consoleLog;
+  gfx::gui::TextInput* consoleLine;
+
+ public:
+  ConsoleWindow(gfx::gui::NGuiManager* gui, gfx::Engine* engine)
+      : gfx::gui::NGuiWindow(gui, engine) {
+    setTitle("Developer console");
+    consoleLog = new gfx::gui::TextLabel(gui);
+    consoleLog->setFont(gui->getFontCache()->get(CONSOLE_FONT, CONSOLE_SIZE));
+    consoleLog->setTextMaxWidth(500);
+    addElement(consoleLog);
+
+    gfx::gui::NGuiPanel* lineInputPanel = new gfx::gui::NGuiPanel(gui);
+    lineInputPanel->setLayout(new gfx::gui::NGuiHorizontalLayout());
+    addElement(lineInputPanel);
+
+    consoleLine = new gfx::gui::TextInput(gui);
+    consoleLine->setFont(gui->getFontCache()->get(CONSOLE_FONT, CONSOLE_SIZE));
+    consoleLine->setPrefix("] ");
+    lineInputPanel->addElement(consoleLine);
+
+    gfx::gui::Button* button0 = new gfx::gui::Button(gui);
+    button0->setText("Run");
+    button0->setPressed(std::bind(&ConsoleWindow::buttonPressed, this));
+    lineInputPanel->addElement(button0);
+  }
+
+  virtual void frame() {
+    const std::deque<LogMessage>& log = Log::singleton()->getLogMessages();
+    std::string logText = "";
+    for (int i = 20; i > 0; i--) {
+      const LogMessage& m = log[i];
+      if (m.t < Settings::singleton()->getCvar("cl_loglevel")->getInt()) {
+        continue;
+      }
+      logText += m.message + "\n";
+    }
+    consoleLog->setText(logText);
+  }
+
+  void buttonPressed() {
+    std::string cmd = consoleLine->getLine();
+    getGame()->getConsole()->command(cmd);
+    consoleLine->setText("");
+  }
+};
+NGUI_INSTANTIATOR(ConsoleWindow);
 
 Console::Console(Game* game) {
   this->game = game;
   visible = false;
 
   if (game->getWorld()) {
-    game->getGfxEngine()->afterGuiRenderStepped.listen([this] { render(); });
     game->getGfxEngine()->initialized.listen([this] {
       copyrightTexture =
           this->game->getGfxEngine()->getDevice()->createTexture();
@@ -63,140 +112,21 @@ Console::Console(Game* game) {
     visible = false;
 #else
     visible = true;
-    Input::singleton()->startEditingText();
 #endif
   } else {
   }
-}
-
-void Console::render() {
-  using namespace std::chrono_literals;
-
-  if (!visible) return;
-
-  rdm::gfx::Engine* engine = game->getGfxEngine();
-  gfx::gui::GuiManager* manager = engine->getGuiManager();
-  gfx::gui::FontCache* fontcache = manager->getFontCache();
-  std::chrono::time_point now = std::chrono::steady_clock::now();
-  std::chrono::time_point d = now - 30s;
-  const std::deque<LogMessage>& log = Log::singleton()->getLogMessages();
-  std::vector<LogMessage> toLog;
-  bool dirty = false;
-  glm::vec2 tres = engine->getTargetResolution();
-  for (int i = 0; i < std::min(log.size(), (size_t)(tres.y / CONSOLE_SIZE));
-       i++) {
-    const LogMessage& m = log[i];
-    if (i == 0) {
-      if (m.time != last_message) {
-        dirty = true;
-        last_message = m.time;
-      }
-    }
-
-    if (m.time < d) continue;
-    if (m.t < Settings::singleton()->getCvar("cl_loglevel")->getInt()) {
-      continue;
-    }
-
-    toLog.push_back(m);
-  }
-
-  if (Input::singleton()->isEditingText()) {
-    if (lastText != Input::singleton()->getEditedText()) {
-      dirty = true;
-      lastText = Input::singleton()->getEditedText();
-    }
-  }
-
-  if (dirty) {
-    std::string msg;
-    for (int i = toLog.size() - 1; i >= 0; --i) {
-      const LogMessage& m = toLog[i];
-      msg += m.message + "\n";
-    }
-
-    if (Input::singleton()->isEditingText()) {
-      msg += "] " + Input::singleton()->getEditedText() + "\n";
-    }
-
-    gfx::gui::OutFontTexture t = gfx::gui::FontRender::renderWrapped(
-        fontcache->get(CONSOLE_FONT, CONSOLE_SIZE), msg.c_str(), tres.x);
-    textTexture->upload2d(t.w, t.h, gfx::DtUnsignedByte, gfx::BaseTexture::RGBA,
-                          t.data);
-    consoleWidth = t.w;
-    consoleHeight = t.h;
-  }
-
-  engine->getDevice()->setBlendState(gfx::BaseDevice::SrcAlpha,
-                                     gfx::BaseDevice::OneMinusSrcAlpha);
-
-  gfx::BaseProgram* bp =
-      manager->getImageMaterial()->prepareDevice(engine->getDevice(), 0);
-
-  bp->setParameter("scale", gfx::DtVec2,
-                   gfx::BaseProgram::Parameter{
-                       .vec2 = glm::vec2(tres.x, tres.y * CONSOLE_RATIO)});
-  bp->setParameter(
-      "texture0", gfx::DtSampler,
-      gfx::BaseProgram::Parameter{.texture.slot = 0,
-                                  .texture.texture = bgTexture->getTexture()});
-  bp->setParameter("color", gfx::DtVec3,
-                   gfx::BaseProgram::Parameter{.vec3 = glm::vec3(1, 1, 1)});
-  bp->setParameter(
-      "offset", gfx::DtVec2,
-      gfx::BaseProgram::Parameter{
-          .vec2 = glm::vec2(0, tres.y - (tres.y * CONSOLE_RATIO))});
-  bp->bind();
-  manager->getSArrayPointers()->bind();
-  engine->getDevice()->draw(manager->getSElementBuf(), gfx::DtUnsignedByte,
-                            gfx::BaseDevice::Triangles, 6);
-
-  bp->setParameter(
-      "texture0", gfx::DtSampler,
-      gfx::BaseProgram::Parameter{.texture.slot = 0,
-                                  .texture.texture = textTexture.get()});
-  bp->setParameter("scale", gfx::DtVec2,
-                   gfx::BaseProgram::Parameter{
-                       .vec2 = glm::vec2(consoleWidth, consoleHeight)});
-  bp->bind();
-  engine->getDevice()->draw(manager->getSElementBuf(), gfx::DtUnsignedByte,
-                            gfx::BaseDevice::Triangles, 6);
-
-  bp->setParameter(
-      "offset", gfx::DtVec2,
-      gfx::BaseProgram::Parameter{.vec2 = glm::vec2(tres.x - copyrightWidth,
-                                                    tres.y - copyrightHeight)});
-  bp->setParameter(
-      "texture0", gfx::DtSampler,
-      gfx::BaseProgram::Parameter{.texture.slot = 0,
-                                  .texture.texture = copyrightTexture.get()});
-  bp->setParameter("scale", gfx::DtVec2,
-                   gfx::BaseProgram::Parameter{
-                       .vec2 = glm::vec2(copyrightWidth, copyrightHeight)});
-  bp->setParameter(
-      "color", gfx::DtVec3,
-      gfx::BaseProgram::Parameter{.vec3 = glm::vec3(0.92, 0.67, 0.0)});
-  bp->bind();
-  engine->getDevice()->draw(manager->getSElementBuf(), gfx::DtUnsignedByte,
-                            gfx::BaseDevice::Triangles, 6);
 }
 
 void Console::tick() {
   static bool debounce = false;
   if (Input::singleton()->isKeyDown(SDLK_BACKQUOTE) && !debounce) {
     debounce = true;
-    if (visible) {
-      visible = false;
-      Input::singleton()->stopEditingText();
-    } else {
-      visible = true;
-      Input::singleton()->startEditingText();
-    }
+    game->getGfxEngine()->getGuiManager()->getGui<ConsoleWindow>()->open();
   } else if (!Input::singleton()->isKeyDown(SDLK_BACKQUOTE)) {
     debounce = false;
   }
 
-  if (visible) {
+  /* if (visible) {
     std::string& inp = Input::singleton()->getEditedText();
     if (!Input::singleton()->isEditingText()) {
       if (inp.empty()) {
@@ -213,7 +143,7 @@ void Console::tick() {
         Input::singleton()->startEditingText();
       }
     }
-  }
+  }*/
 }
 
 void Console::command(std::string in) {

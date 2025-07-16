@@ -1,9 +1,11 @@
 #include "material.hpp"
 
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
+#include "base_device.hpp"
 #include "base_types.hpp"
 #include "camera.hpp"
 #include "engine.hpp"
@@ -58,6 +60,22 @@ Technique::Technique(BaseDevice* device, std::string techniqueVs,
   program->link();
 }
 
+Technique::Technique(BaseDevice* device, std::optional<ShaderFile> vs,
+                     std::optional<ShaderFile> fs,
+                     std::optional<ShaderFile> gs) {
+  program = device->createProgram();
+  if (vs.has_value()) {
+    program->addShader(vs.value(), BaseProgram::Vertex);
+  }
+  if (fs.has_value()) {
+    program->addShader(fs.value(), BaseProgram::Fragment);
+  }
+  if (gs.has_value()) {
+    program->addShader(gs.value(), BaseProgram::Geometry);
+  }
+  program->link();
+}
+
 void Technique::bindProgram() { program->bind(); }
 
 std::shared_ptr<Technique> Technique::create(BaseDevice* device,
@@ -66,6 +84,13 @@ std::shared_ptr<Technique> Technique::create(BaseDevice* device,
                                              std::string techniqueGs) {
   return std::shared_ptr<Technique>(
       new Technique(device, techniqueVs, techniqueFs, techniqueGs));
+}
+
+std::shared_ptr<Technique> Technique::create(BaseDevice* device,
+                                             std::optional<ShaderFile> vs,
+                                             std::optional<ShaderFile> fs,
+                                             std::optional<ShaderFile> gs) {
+  return std::shared_ptr<Technique>(new Technique(device, vs, fs, gs));
 }
 
 Material::Material() {}
@@ -120,6 +145,47 @@ void MaterialCache::addDataFile(const char* path) {
       std::string(materialJsonString.begin(), materialJsonString.end()));
 }
 
+MaterialBinaryFile::MaterialBinaryFile(std::string path) {
+  Log::printf(LOG_DEBUG, "Opening material binary file %s", path.c_str());
+  auto fio =
+      common::FileSystem::singleton()->getFileIO(path.c_str(), "rb").value();
+  char magic[9] = {0};
+  fio->read(magic, 8);
+  if (magic != std::string("rdmShadr")) {
+    throw std::runtime_error("magic failed");
+  }
+
+  int numShaders;
+  fio->read(&numShaders, sizeof(numShaders));
+  int entrySize;
+  fio->read(&entrySize, sizeof(entrySize));
+
+  for (int i = 0; i < numShaders; i++) {
+    fio->seek(0x1000 + (entrySize * i), SEEK_SET);
+    char name[128];
+    fio->read(name, 128);
+
+    Entry entry;
+    for (int i = 0; i < ShaderBinaryType::__Max; i++) {
+      ShaderBinaryType sbt = (ShaderBinaryType)i;
+      int size, baseOffset;
+      fio->read(&size, sizeof(size));
+      fio->read(&baseOffset, sizeof(baseOffset));
+
+      size_t p = fio->tell();
+
+      fio->seek(baseOffset, SEEK_SET);
+      std::vector<char> data;
+      data.resize(size);
+      fio->read(data.data(), size);
+      entry.binaries[sbt] = std::string(data.begin(), data.end());
+
+      fio->seek(p, SEEK_SET);
+    }
+    shaderEntries[name] = entry;
+  }
+}
+
 std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
     const char* materialName) {
   auto it = cache.find(materialName);
@@ -130,10 +196,21 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
     try {
       for (auto materialData : materialDatas) {
         json data = json::parse(materialData);
+
         json materialInfo = data["Materials"][materialName];
         if (materialInfo.is_null()) {
           continue;
         }
+        MaterialBinaryFile* mbf = NULL;
+
+        if (!data["Binary"].is_null()) {
+          if (binaries.find(materialData) == binaries.end()) {
+            binaries[materialData].reset(
+                new MaterialBinaryFile(data["Binary"]));
+          }
+          mbf = binaries[materialData].get();
+        }
+
         json materialRequirements = data["Materials"][materialName];
         if (!materialRequirements.is_null()) {
           if (materialRequirements["PostProcess"].is_boolean()) {
@@ -152,13 +229,44 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
                           techniqueId);
               continue;
             }
-            std::string vsName = program["VSName"];
-            std::string fsName = program["FSName"];
-            std::string gsName = "";
-            if (program.find("GSName") != program.end())
-              gsName = program["GSName"];
-            material->addTechnique(
-                Technique::create(device, vsName, fsName, gsName));
+            if (mbf) {
+              std::optional<MaterialBinaryFile::Entry> vsEntry =
+                  mbf->getEntry(program["VSName"]);
+              std::optional<ShaderFile> vsSf;
+              ShaderBinaryType preferred = device->getPreferedShaderType();
+              if (vsEntry.has_value()) {
+                vsSf = {vsEntry.value().binaries[preferred], program["VSName"],
+                        preferred};
+              }
+              std::optional<MaterialBinaryFile::Entry> fsEntry =
+                  mbf->getEntry(program["FSName"]);
+              std::optional<ShaderFile> fsSf;
+              if (fsEntry.has_value()) {
+                fsSf = {fsEntry.value().binaries[preferred], program["FSName"],
+                        preferred};
+              }
+
+              std::optional<ShaderFile> gsSf;
+              if (program.find("GSName") != program.end()) {
+                std::optional<MaterialBinaryFile::Entry> gsEntry =
+                    mbf->getEntry(program["GSName"]);
+                if (gsEntry.has_value()) {
+                  gsSf = {gsEntry.value().binaries[preferred],
+                          program["GSName"], preferred};
+                }
+              }
+
+              material->addTechnique(
+                  Technique::create(device, vsSf, fsSf, gsSf));
+            } else {
+              std::string vsName = program["VSName"];
+              std::string fsName = program["FSName"];
+              std::string gsName = "";
+              if (program.find("GSName") != program.end())
+                gsName = program["GSName"];
+              material->addTechnique(
+                  Technique::create(device, vsName, fsName, gsName));
+            }
           } catch (std::runtime_error& e) {
             Log::printf(
                 LOG_ERROR,

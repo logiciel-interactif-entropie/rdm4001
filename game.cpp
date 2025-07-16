@@ -29,7 +29,6 @@
 #include "network/network.hpp"
 #include "resource.hpp"
 #include "scheduler.hpp"
-#include "script/script.hpp"
 #include "security.hpp"
 #include "settings.hpp"
 
@@ -56,7 +55,6 @@ Game::Game(bool silence) {
 
   ignoreNextMouseMoveEvent = false;
 
-  script::Script::initialize();
   network::NetworkManager::initialize();
   resourceManager.reset(new ResourceManager());
   securityManager.reset(new SecurityManager());
@@ -81,7 +79,6 @@ Game::Game(bool silence) {
 
 Game::~Game() {
   network::NetworkManager::deinitialize();
-  script::Script::deinitialize();
 
   if (window) {
     SDL_DestroyWindow(window);
@@ -166,8 +163,6 @@ void Game::startClient() {
   ImGui_ImplSDL2_InitForOpenGL(
       window, ((gfx::gl::GLContext*)gfxEngine->getContext())->getContext());
   ImGui::GetIO().DisplaySize = ImVec2(wsize.x, wsize.y);
-
-  world->getScriptContext()->setGfxEngine(gfxEngine.get());
 
   if (worldSettings.network) {
     world->getNetworkManager()->setGfxEngine(gfxEngine.get());
@@ -354,7 +349,9 @@ void Game::pollEvents() {
   Input::singleton()->beginFrame();
   SDL_Event event;
 
+#ifndef _WIN32
   if (dirtyIcon) updateIcon();
+#endif
 
   bool ignoreMouse = false;
   SDL_ShowCursor(!Input::singleton()->getMouseLocked());

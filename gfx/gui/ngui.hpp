@@ -98,6 +98,8 @@ class NGuiManager {
     int width;
   };
   TexOutData getTextTexture(int tn, Font* font, int maxWidth, const char* text);
+
+  gfx::Engine* getEngine() { return engine; }
 };
 
 class NGuiRenderer {

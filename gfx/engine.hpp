@@ -10,7 +10,6 @@
 #include "camera.hpp"
 #include "entity.hpp"
 #include "gfx/base_types.hpp"
-#include "gfx/gui/gui.hpp"
 #include "gfx/mesh.hpp"
 #include "gfx/video.hpp"
 #include "gui/ngui.hpp"
@@ -60,7 +59,6 @@ class Engine {
 
   std::unique_ptr<BaseContext> context;
   std::unique_ptr<BaseDevice> device;
-  std::unique_ptr<gui::GuiManager> gui;
   std::unique_ptr<gui::NGuiManager> ngui;
   std::unique_ptr<VideoRenderer> videoRenderer;
   std::vector<std::unique_ptr<Entity>> entities;
@@ -168,8 +166,8 @@ class Engine {
   MeshCache* getMeshCache() {
     return meshCache.get();
   }
+  gui::NGuiManager* getGuiManager() { return ngui.get(); }
   VideoRenderer* getVideoRenderer() { return videoRenderer.get(); }
-  gui::GuiManager* getGuiManager() { return gui.get(); }
 
   float getTime() { return time; }
 

@@ -5,7 +5,7 @@ in vec2 f_uv;
 
 uniform sampler2D texture0;
 uniform vec3 color;
-uniform vec4 bgcolor;
+uniform vec4 bgcolor = vec4(0);
 
 void main() {
   vec4 o_color = texture(texture0, f_uv) * vec4(color, 1.0);

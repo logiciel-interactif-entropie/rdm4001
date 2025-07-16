@@ -7,10 +7,83 @@
 #include "game.hpp"
 #include "gfx/engine.hpp"
 #include "input.hpp"
+#include "ngui.hpp"
 #include "world.hpp"
 namespace rdm::gfx::gui {
+NGuiElement::NGuiElement(NGuiManager* manager) {
+  this->manager = manager;
+  this->parent = NULL;
+  size = glm::vec2(0, 0);
+  minSize = glm::vec2(0, 0);
+  maxSize = glm::vec2(INT32_MAX, INT32_MAX);
+}
+
+NGuiElement::~NGuiElement() {}
+
+void NGuiVerticalLayout::layoutElements(NGuiPanel* panel,
+                                        std::vector<NGuiElement*>& children) {
+  glm::vec2 pos = glm::vec2(0);
+  glm::vec2 posLocal = glm::vec2(getMargin());
+  pos = panel->getPosition();
+  if (panel->getParent() == NULL) pos.y += panel->getSize().y;
+  pos.x += getMargin();
+  pos.y -= getMargin();
+  glm::vec2 max = glm::vec2(0);
+  for (auto& child : children) {
+    glm::vec2 maxSize = child->getMaxSize();
+    maxSize.x = glm::max(maxSize.x, panel->getSize().x);
+    child->setMaxSize(maxSize);
+    child->setPosition(pos);
+
+    if (NGuiPanel* panel = dynamic_cast<NGuiPanel*>(child)) {
+      panel->doLayout();
+    }
+
+    pos.y -= child->getSize().y + getPadding();
+    max = glm::max(child->getSize() + posLocal + glm::vec2(getMargin()), max);
+    posLocal.y += child->getSize().y;
+  }
+  panel->setMinSize(max);
+  panel->setSize(panel->getSize());
+}
+
+void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
+                                          std::vector<NGuiElement*>& children) {
+  glm::vec2 pos = glm::vec2();
+  glm::vec2 posLocal = glm::vec2(getMargin());
+  pos = panel->getPosition();
+  pos += getMargin();
+  glm::vec2 max = glm::vec2(0);
+  for (auto& child : children) {
+    child->setPosition(pos);
+    glm::vec2 maxSize = child->getMaxSize();
+    maxSize.y = glm::max(maxSize.y, panel->getSize().y);
+    child->setMaxSize(maxSize);
+
+    if (NGuiPanel* panel = dynamic_cast<NGuiPanel*>(child)) {
+      panel->doLayout();
+    }
+
+    pos.x += child->getSize().x + getPadding();
+    max = glm::max(child->getSize() + posLocal + glm::vec2(getMargin()), max);
+    posLocal.x += child->getSize().x;
+  }
+  panel->setMinSize(max);
+  panel->setSize(panel->getSize());
+}
+
+void NGuiPanel::elementRender(NGuiRenderer* renderer) {
+  for (auto child : children) {
+    child->elementRender(renderer);
+  }
+}
+
+void NGuiPanel::doLayout() { layout->layoutElements(this, children); }
+
+glm::vec2 NGuiPanel::getContentSize() { glm::vec2 sz = getSize(); }
+
 NGuiWindow::NGuiWindow(NGuiManager* gui, gfx::Engine* engine)
-    : NGui(gui, engine) {
+    : NGui(gui, engine), NGuiPanel(gui) {
   font = gui->getFontCache()->get("engine/gui/default.ttf", 14);
   titleFont = gui->getFontCache()->get("engine/gui/default.ttf", 11);
   closeButton = getResourceManager()->load<resource::Texture>(
@@ -18,125 +91,17 @@ NGuiWindow::NGuiWindow(NGuiManager* gui, gfx::Engine* engine)
 
   visible = false;
   title = "";
-  position = glm::vec2(0);
+  setPosition(glm::vec2(0));
   setMinSize(glm::vec2(200, 10));
   setMaxSize(glm::vec2(UINT32_MAX, UINT32_MAX));
-  setSize(minSize);
-}
-
-NGuiWindow::Render::Render(NGuiRenderer* renderer, NGuiWindow* window,
-                           glm::vec2 offset) {
-  this->renderer = renderer;
-  this->window = window;
-  font = window->font;
-  engine = window->getEngine();
-
-  elemPos = window->getPosition() +
-            glm::vec2(offset.x, window->getSize().y - offset.y);
-  pixels = 0.f;
-}
-
-void NGuiWindow::Render::text(const char* text, ...) {
-  va_list ap;
-  va_start(ap, text);
-  char buf[65535];
-  vsnprintf(buf, sizeof(buf), text, ap);
-  renderer->setColor(glm::vec3(1.0));
-  auto p = renderer->text(elemPos, font, window->getSize().x - (15.f * 2.f),
-                          "%s", buf);
-  renderer->getLastCommand()->setOffset(
-      glm::vec2(elemPos.x, elemPos.y - p.second));
-  elemPos.y -= p.second;
-  pixels += p.second;
-  va_end(ap);
-}
-
-void NGuiWindow::Render::image(glm::vec2 sz, gfx::BaseTexture* texture) {
-  renderer->setColor(glm::vec3(1.0));
-  renderer->image(texture, elemPos - glm::vec2(0.f, sz.y), sz);
-  elemPos.y -= sz.y;
-  pixels += sz.y;
-}
-
-void NGuiWindow::Render::inputLine(char* out, size_t len,
-                                   const char* emptyString) {
-  const char* dpy = out;
-  bool empty = false;
-  if (strlen(out) == 0) {
-    dpy = emptyString;
-    empty = true;
-  }
-
-  glm::vec2 res = window->size;
-  glm::ivec2 bdim = glm::max(font->getTextSize(dpy),
-                             glm::ivec2(res.x - (15.f * 2.f), INFINITY));
-  elemPos.y -= 16.f;
-
-  int mouseStatus = renderer->mouseDownZone(elemPos, bdim);
-  if (mouseStatus == 1) {
-    window->getManager()->setCurrentText(out, len);
-  } else if (window->getManager()->isCurrentText(out) && mouseStatus == -2) {
-    window->getManager()->setCurrentText(NULL, 0);
-  }
-
-  renderer->setColor(glm::vec3(0.2f));
-  renderer->image(engine->getWhiteTexture(), elemPos, glm::vec2(bdim));
-  if (window->getManager()->isCurrentText(out)) {
-    renderer->setColor(glm::vec3(1.0f));
-    renderer->text(elemPos - glm::vec2(8.f, 0.f), font, 0, ">");
-    renderer->text(elemPos, font, bdim.x, "%s", out);
-  } else {
-    renderer->setColor(empty ? glm::vec3(0.5f) : glm::vec3(1.0f));
-    renderer->text(elemPos, font, bdim.x, "%s", dpy);
-  }
-  pixels += bdim.y;
-}
-
-void NGuiWindow::Render::progressBar(float value, float max) {
-  float p = std::max(std::min(value / max, 1.f), .0f) *
-            (window->size.x - (15.f * 2.f));
-  glm::vec2 sz = glm::vec2(p, 16);
-  pixels += 16.f;
-  elemPos.y -= 16.f;
-
-  renderer->setColor(glm::vec3(0.2));
-  renderer->image(engine->getWhiteTexture(), elemPos,
-                  glm::vec2(window->size.x - (15.f * 2.f), 16.f));
-
-  renderer->setColor(glm::vec3(0.7));
-  renderer->image(engine->getWhiteTexture(), elemPos, sz);
-}
-
-bool NGuiWindow::Render::button(const char* text) {
-  glm::ivec2 bdim = font->getTextSize(text);
-  glm::vec2 p = elemPos;
-  p.y -= bdim.y;
-  int status = renderer->mouseDownZone(p, bdim);
-  bool value = false;
-
-  switch (status) {
-    default:
-    case -1:
-      renderer->setColor(glm::vec3(0.2));
-      break;
-    case 0:
-      renderer->setColor(glm::vec3(0.0));
-      break;
-    case 1:
-      renderer->setColor(glm::vec3(1.0));
-      value = true;
-      break;
-  }
-  renderer->image(engine->getWhiteTexture(), p, bdim);
-  renderer->setColor(glm::vec3(1.0));
-  renderer->text(p, font, 0, text);
-  elemPos.y -= bdim.y;
-  pixels += bdim.y;
-  return value;
+  setSize(getMinSize());
 }
 
 void NGuiWindow::render(NGuiRenderer* renderer) {
   if (!visible) return;
+
+  glm::vec2 size = getSize();
+  glm::vec2 position = getPosition();
 
   renderer->setZIndex(UINT32_MAX);
 
@@ -147,6 +112,8 @@ void NGuiWindow::render(NGuiRenderer* renderer) {
   }
 
   position = glm::max(glm::vec2(0), position);
+
+  setPosition(position);
 
   renderer->setColor(glm::vec3(0.5));
   renderer->image(getEngine()->getWhiteTexture(), position, size);
@@ -168,17 +135,17 @@ void NGuiWindow::render(NGuiRenderer* renderer) {
     close();
   }
 
-  Render render(renderer, this, glm::vec2(15, 15));
-  show(&render);
+  frame();
 
-  glm::vec2 contentSize = glm::vec2(size.x, (render.pixels) + (15.f * 2.f));
-  setSize(glm::max(contentSize, size));
+  doLayout();
+  elementRender(renderer);
 }
 
 void NGuiWindow::open() {
+  glm::vec2 size = getSize();
   glm::vec2 res = getEngine()->getTargetResolution();
-  position =
-      glm::vec2((res.x / 2.f) - (size.x / 2.f), (res.y / 2.f) - (size.y / 2.f));
+  setPosition(glm::vec2((res.x / 2.f) - (size.x / 2.f),
+                        (res.y / 2.f) - (size.y / 2.f)));
   visible = true;
 }
 

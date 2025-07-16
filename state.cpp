@@ -8,12 +8,10 @@
 #include "gfx/base_types.hpp"
 #include "gfx/engine.hpp"
 #include "gfx/gui/font.hpp"
-#include "gfx/gui/gui.hpp"
 #include "gfx/gui/ngui.hpp"
 #include "gfx/gui/ngui_window.hpp"
 #include "input.hpp"
 #include "network/network.hpp"
-#include "script/my_basic.h"
 #include "settings.hpp"
 namespace rdm {
 static CVar cl_nointro("cl_nointro", "0", CVARF_GLOBAL | CVARF_SAVE);
@@ -30,24 +28,6 @@ class ConnectionGui : public gfx::gui::NGuiWindow {
     memset(portStr, 0, sizeof(portStr));
   }
 
-  virtual void show(Render* render) {
-    render->text("IP");
-    render->inputLine(ipStr, sizeof(ipStr), "127.0.0.1");
-    render->text("Port");
-    render->inputLine(portStr, sizeof(portStr), "7938");
-    render->text(
-        "You are connecting as %s",
-        Settings::singleton()->getCvar("cl_username")->getValue().c_str());
-    if (render->button("Connect") == 1) {
-      std::string ip, stringPort;
-      strlen(ipStr) == 0 ? ip = "127.0.0.1" : ip = ipStr;
-      strlen(portStr) == 0 ? stringPort = "7938" : stringPort = portStr;
-      int port = std::atoi(stringPort.data());
-      getGame()->getWorld()->getNetworkManager()->connect(ip, port);
-      close();
-    }
-  }
-
   virtual void closing() {
     getGame()->getGameState()->setState(GameState::MainMenu);
   }
@@ -59,17 +39,6 @@ class ConnectingGui : public gfx::gui::NGuiWindow {
       : gfx::gui::NGuiWindow(manager, engine) {
     setTitle("Connecting");
   }
-
-  virtual void show(Render* render) {
-    render->text("Connecting to server...");
-    render->progressBar(fabsf((sinf(getEngine()->getTime()) * 0.5f) + 0.5f),
-                        1.0);
-    render->button("Give up");
-
-    if (getGame()->getWorld()->getNetworkManager()->getLocalPeer().type !=
-        network::Peer::Undifferentiated)
-      close();
-  }
 };
 
 class PlayGameGui : public gfx::gui::NGuiWindow {
@@ -77,16 +46,6 @@ class PlayGameGui : public gfx::gui::NGuiWindow {
   PlayGameGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
       : gfx::gui::NGuiWindow(manager, engine) {
     setTitle("Play Game");
-  }
-
-  virtual void show(Render* render) {
-    if (render->button("Connect to server...") == 1) {
-      getManager()->getGui<ConnectionGui>()->open();
-      close();
-    }
-    if (render->button("Host a server...") == 1) {
-      close();
-    }
   }
 
   virtual void closing() {

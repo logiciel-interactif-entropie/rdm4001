@@ -32,6 +32,26 @@ class ShaderCache {
   ShaderFile getCachedOrFile(const char* path);
 };
 
+class MaterialBinaryFile {
+ public:
+  MaterialBinaryFile(std::string path);
+
+  struct Entry {
+    std::map<ShaderBinaryType, std::string> binaries;
+  };
+
+  std::optional<Entry> getEntry(std::string name) {
+    if (shaderEntries.find(name) != shaderEntries.end()) {
+      return shaderEntries[name];
+    } else {
+      return {};
+    }
+  }
+
+ private:
+  std::map<std::string, Entry> shaderEntries;
+};
+
 /**
  * @brief Individual pass for a Material
  *
@@ -42,12 +62,18 @@ class Technique {
   std::unique_ptr<BaseProgram> program;
   Technique(BaseDevice* device, std::string techniqueVs,
             std::string techniqueFs, std::string techniqueGs);
+  Technique(BaseDevice* device, std::optional<ShaderFile> vs,
+            std::optional<ShaderFile> fs, std::optional<ShaderFile> gs);
 
  public:
   static std::shared_ptr<Technique> create(BaseDevice* device,
                                            std::string techniqueVs,
                                            std::string techniqueFs,
                                            std::string techniqueGs = "");
+  static std::shared_ptr<Technique> create(BaseDevice* device,
+                                           std::optional<ShaderFile> vs = {},
+                                           std::optional<ShaderFile> fs = {},
+                                           std::optional<ShaderFile> gs = {});
 
   void bindProgram();
   BaseProgram* getProgram() { return program.get(); }
@@ -87,6 +113,7 @@ class Material {
  */
 class MaterialCache {
   std::map<std::string, std::shared_ptr<Material>> cache;
+  std::map<std::string, std::unique_ptr<MaterialBinaryFile>> binaries;
   std::list<std::string> materialDatas;
   BaseDevice* device;
 

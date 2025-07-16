@@ -34,6 +34,7 @@ GLenum fromDataType(DataType t) {
 GLTexture::GLTexture() {
   glGenTextures(1, &texture);
   isRenderBuffer = false;
+  multisampled = false;
 }
 
 GLTexture::~GLTexture() { glDeleteTextures(1, &texture); }
@@ -136,6 +137,7 @@ void GLTexture::reserve2dMultisampled(int width, int height,
                                       bool renderbuffer) {
   textureType = Texture2D_MultiSample;
   textureFormat = format;
+  multisampled = true;
 
   if (renderbuffer) {
     glGenRenderbuffers(1, &this->renderbuffer);
@@ -263,11 +265,24 @@ void GLProgram::link() {
 
     GLuint _shader = glCreateShader(shaderType(type));
     glObjectLabel(GL_SHADER, _shader, shader.name.size(), shader.name.data());
+
     programName += shader.name + " ";
     GLchar* code = (GLchar*)shader.code.c_str();
     int codeLength[] = {(int)shader.code.size()};
-    glShaderSource(_shader, 1, &code, (const GLint*)&codeLength);
-    glCompileShader(_shader);
+    switch (shader.type) {
+      case GlslPreprocessed: {
+        glShaderSource(_shader, 1, &code, (const GLint*)&codeLength);
+        glCompileShader(_shader);
+      } break;
+      case GlslSpirVBinary: {
+        glShaderBinary(1, &_shader, GL_SHADER_BINARY_FORMAT_SPIR_V, code,
+                       codeLength[0]);
+        glSpecializeShader(_shader, "main", 0, NULL, NULL);
+      } break;
+      default:
+        throw std::runtime_error("Bad shader type :(");
+        break;
+    }
 
     GLint success = 0;
     glGetShaderiv(_shader, GL_COMPILE_STATUS, &success);
@@ -304,6 +319,11 @@ void GLProgram::link() {
     char* infoLog = (char*)malloc(logSize);
     glGetProgramInfoLog(program, logSize, NULL, infoLog);
     Log::printf(LOG_ERROR, "Program link error\n%s", infoLog);
+#ifndef NDEBUG
+    for (auto [type, shader] : shaders) {
+      Log::printf(LOG_DEBUG, "%i Shader code:\n%s", type, shader.code.c_str());
+    }
+#endif
     free(infoLog);
 
     throw std::runtime_error("Program link error");

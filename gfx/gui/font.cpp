@@ -62,7 +62,7 @@ OutFontTexture FontRender::render(Font* font, const char* text) {
 }
 
 OutFontTexture FontRender::renderWrapped(Font* font, const char* text,
-                                         int wraplength) {
+                                         unsigned int wraplength) {
   OutFontTexture t;
 
   SDL_Surface* surf;
