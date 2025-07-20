@@ -400,6 +400,9 @@ void Model::render(
 
     gfx::Material* usedMaterial = material ? material : gfx_material.get();
     gfx::BaseProgram* bp = usedMaterial->prepareDevice(device, 0);
+
+    device->getEngine()->getCurrentViewport()->getLightingManager().upload(
+        glm::vec3(0), bp);
     if (skinned && animator) animator->upload(bp);
     if (setParameters) setParameters.value()(bp);
 

@@ -27,6 +27,7 @@ ShaderFile ShaderCache::getCachedOrFile(const char* path) {
   auto it = cache.find(path);
   ShaderFile f;
   f.name = path;
+  f.type = RawShaderCode;
   if (it != cache.end()) {
     f.code = cache[path];
   } else {

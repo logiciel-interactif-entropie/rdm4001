@@ -34,7 +34,7 @@ ConsoleData* getCData() {
   return ds;
 }
 
-#define CONSOLE_FONT "engine/gui/monospace.ttf"
+#define CONSOLE_FONT "engine/gui/msgothic.ttf"
 #define CONSOLE_SIZE 18
 class ConsoleWindow : public gfx::gui::NGuiWindow {
   gfx::gui::TextLabel* consoleLog;
@@ -47,6 +47,7 @@ class ConsoleWindow : public gfx::gui::NGuiWindow {
     consoleLog = new gfx::gui::TextLabel(gui);
     consoleLog->setFont(gui->getFontCache()->get(CONSOLE_FONT, CONSOLE_SIZE));
     consoleLog->setTextMaxWidth(500);
+    consoleLog->setAutoWrap(true);
     addElement(consoleLog);
 
     gfx::gui::NGuiPanel* lineInputPanel = new gfx::gui::NGuiPanel(gui);
@@ -54,7 +55,8 @@ class ConsoleWindow : public gfx::gui::NGuiWindow {
     addElement(lineInputPanel);
 
     consoleLine = new gfx::gui::TextInput(gui);
-    consoleLine->setFont(gui->getFontCache()->get(CONSOLE_FONT, CONSOLE_SIZE));
+    // consoleLine->setFont(gui->getFontCache()->get(CONSOLE_FONT,
+    // CONSOLE_SIZE));
     consoleLine->setPrefix("] ");
     lineInputPanel->addElement(consoleLine);
 
@@ -67,7 +69,7 @@ class ConsoleWindow : public gfx::gui::NGuiWindow {
   virtual void frame() {
     const std::deque<LogMessage>& log = Log::singleton()->getLogMessages();
     std::string logText = "";
-    for (int i = 20; i > 0; i--) {
+    for (int i = 20; i >= 0; i--) {
       const LogMessage& m = log[i];
       if (m.t < Settings::singleton()->getCvar("cl_loglevel")->getInt()) {
         continue;

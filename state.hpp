@@ -8,21 +8,30 @@ namespace rdm {
 class Game;
 
 class GameState {
+  friend class WaitingWindow;
+
   Game* game;
   float timer;
   resource::Model* entropyLogo;
   rdm::SoundEmitter* emitter;
+  std::string waitingMessage;
 
  public:
   GameState(Game* game);
 
+  Game* getGame() { return game; }
+
   enum States {
     Intro,
+    FiguringOutWhatToDo,
+    WaitForSomething,
+    PreGameSetup,
     MainMenu,
     MenuOnlinePlay,
     InGame,
     Connecting,
     Todo,
+    Quit,
   };
 
   std::map<States, std::string> stateMusic;
@@ -36,6 +45,10 @@ class GameState {
   States getState() { return state; }
 
   virtual void renderMainMenu(gfx::Engine* engine) {};
+  virtual void renderWaiting(gfx::Engine* engine) {};
+  // called after intro anim is done
+  virtual void figureOutWhatToDo() { setState(MainMenu); };
+  virtual void tickWaiting() {};
 
  private:
   States state;

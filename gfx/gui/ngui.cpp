@@ -179,6 +179,8 @@ std::pair<int, int> NGuiRenderer::text(glm::ivec2 position, Font* font,
     target.y = (window.y + target.y) - d.height;
   }
 
+  target = glm::round(target);
+
   RenderCommand command(BaseDevice::Triangles, manager->getSElementBuf(), 6,
                         NULL, NULL, NULL);
   command.setOffset(target);
@@ -206,6 +208,9 @@ void NGuiRenderer::image(gfx::BaseTexture* image, glm::vec2 position,
     target.y = (window.y + target.y) - size.y;
   }
 
+  target = glm::round(target);
+  size = glm::round(size);
+
   RenderCommand command(BaseDevice::Triangles, manager->getSElementBuf(), 6,
                         NULL, NULL, NULL);
   command.setOffset(target);
@@ -224,6 +229,9 @@ int NGuiRenderer::mouseDownZone(glm::vec2 pos, glm::vec2 size) {
   glm::vec2 res = getEngine()->getTargetResolution();
 
   bool oob = false;
+
+  pos = glm::round(pos);
+  size = glm::round(size);
 
   mp.y = res.y - mp.y;
   if (mp.x < pos.x) oob = true;

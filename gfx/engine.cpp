@@ -139,7 +139,7 @@ static CVar r_rate("r_rate", "60.0", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_bloom("r_bloom", "1", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_scale("r_scale", "1.0", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_exposure("r_exposure", "0.0", CVARF_GLOBAL);
-static CVar r_samples("r_samples", "1", CVARF_GLOBAL | CVARF_SAVE);
+static CVar r_samples("r_samples", "0", CVARF_GLOBAL | CVARF_SAVE);
 
 class RenderJob : public SchedulerJob {
   Engine* engine;
@@ -526,8 +526,9 @@ void Engine::render() {
         getDevice()->clearDepth();
         getDevice()->clear(0.f, 0.f, 0.f, 0.f);
         getDevice()->setDepthState(BaseDevice::Always);
-        getDevice()->setBlendState(BaseDevice::SrcAlpha,
-                                   BaseDevice::OneMinusSrcAlpha);
+        getDevice()->setBlendStateSeperate(
+            BaseDevice::SrcAlpha, BaseDevice::OneMinusSrcAlpha, BaseDevice::One,
+            BaseDevice::OneMinusSrcAlpha);
       } break;
       default:
         break;

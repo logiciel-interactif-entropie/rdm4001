@@ -178,6 +178,9 @@ int main(int argc, char** argv) {
   }
 
   printf("%i shaders compiled, %i failed, %i tried\n", compiled, failed, tried);
+  for (auto& [nam, _] : compiledShaders) {
+    printf("%s\n", nam.c_str());
+  }
 
   FILE* output =
       fopen((dataDir + "/" + (std::string)data["Binary"]).c_str(), "wb");

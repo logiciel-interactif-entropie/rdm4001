@@ -9,6 +9,7 @@
 #include "gfx/engine.hpp"
 #include "gfx/gui/font.hpp"
 #include "gfx/gui/ngui.hpp"
+#include "gfx/gui/ngui_elements.hpp"
 #include "gfx/gui/ngui_window.hpp"
 #include "input.hpp"
 #include "network/network.hpp"
@@ -17,15 +18,39 @@ namespace rdm {
 static CVar cl_nointro("cl_nointro", "0", CVARF_GLOBAL | CVARF_SAVE);
 
 class ConnectionGui : public gfx::gui::NGuiWindow {
-  char ipStr[64];
-  char portStr[7];
+  gfx::gui::TextInput* ipInput;
+  gfx::gui::TextInput* portInput;
 
  public:
   ConnectionGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
       : gfx::gui::NGuiWindow(manager, engine) {
     setTitle("Connection");
-    memset(ipStr, 0, sizeof(ipStr));
-    memset(portStr, 0, sizeof(portStr));
+
+    gfx::gui::NGuiPanel* panel0 = new gfx::gui::NGuiPanel(manager);
+    panel0->setLayout(new gfx::gui::NGuiHorizontalLayout());
+
+    gfx::gui::TextLabel* iplabel0 = new gfx::gui::TextLabel(manager);
+    iplabel0->setText("IP");
+    panel0->addElement(iplabel0);
+
+    ipInput = new gfx::gui::TextInput(manager);
+    ipInput->setEmptyText("127.0.0.1");
+
+    panel0->addElement(ipInput);
+    addElement(panel0);
+
+    gfx::gui::NGuiPanel* panel1 = new gfx::gui::NGuiPanel(manager);
+    panel1->setLayout(new gfx::gui::NGuiHorizontalLayout());
+
+    gfx::gui::TextLabel* portlabel0 = new gfx::gui::TextLabel(manager);
+    portlabel0->setText("Port");
+    panel1->addElement(portlabel0);
+
+    portInput = new gfx::gui::TextInput(manager);
+    portInput->setEmptyText("7936");
+
+    panel1->addElement(portInput);
+    addElement(panel1);
   }
 
   virtual void closing() {
@@ -38,6 +63,19 @@ class ConnectingGui : public gfx::gui::NGuiWindow {
   ConnectingGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
       : gfx::gui::NGuiWindow(manager, engine) {
     setTitle("Connecting");
+
+    gfx::gui::TextLabel* label = new gfx::gui::TextLabel(manager);
+    label->setText("Connecting to server...");
+    addElement(label);
+
+    setClosable(false);
+    setDraggable(false);
+    setCenter(true);
+  }
+
+  virtual void frame() {
+    auto& peer = getGame()->getWorld()->getNetworkManager()->getLocalPeer();
+    if (peer.type == network::Peer::ConnectedPlayer) close();
   }
 };
 
@@ -46,6 +84,19 @@ class PlayGameGui : public gfx::gui::NGuiWindow {
   PlayGameGui(gfx::gui::NGuiManager* manager, gfx::Engine* engine)
       : gfx::gui::NGuiWindow(manager, engine) {
     setTitle("Play Game");
+
+    setLayout(new gfx::gui::NGuiHorizontalLayout());
+    gfx::gui::Button* button0 = new gfx::gui::Button(manager);
+    button0->setText("Connect");
+    button0->setPressed([this] {
+      getManager()->getGui<ConnectionGui>()->open();
+      close();
+    });
+    addElement(button0);
+    gfx::gui::Button* button1 = new gfx::gui::Button(manager);
+    button1->setText("Host Server");
+    button1->setPressed([this] {});
+    addElement(button1);
   }
 
   virtual void closing() {
@@ -75,7 +126,7 @@ class MainMenuGui : public gfx::gui::NGui {
     states.push_back((Entry){"Online Play", GameState::MenuOnlinePlay,
                              getManager()->getGui<PlayGameGui>()});
     states.push_back((Entry){"Settings", GameState::Todo, NULL});
-    states.push_back((Entry){"Quit", GameState::Todo, NULL});
+    states.push_back((Entry){"Quit", GameState::Quit, NULL});
 
     spacePerElement.x /= states.size();
 
@@ -138,7 +189,7 @@ NGUI_INSTANTIATOR(MainMenuGui);
 
 GameState::GameState(Game* game) {
   this->game = game;
-  state = cl_nointro.getBool() ? MainMenu : Intro;
+  state = cl_nointro.getBool() ? FiguringOutWhatToDo : Intro;
   timer = 10.f;
   emitter = game->getSoundManager()->newEmitter();
   entropyLogo = game->getResourceManager()->load<resource::Model>(
@@ -158,6 +209,9 @@ GameState::GameState(Game* game) {
       } break;
       case Todo: {
       } break;
+      case WaitForSomething:
+        renderWaiting(game->getGfxEngine());
+        break;
       case Intro: {
         Graph::Node node;
         node.basis = glm::identity<glm::mat3>();
@@ -214,9 +268,15 @@ GameState::GameState(Game* game) {
       case Intro:
         timer -= 1.0 / 60.0;
         if (timer <= 0.0) {
-          setState(MainMenu);
+          setState(FiguringOutWhatToDo);
           emitter->stop();
         }
+        break;
+      case FiguringOutWhatToDo:
+        figureOutWhatToDo();
+        break;
+      case WaitForSomething:
+        tickWaiting();
         break;
       case MainMenu: {
       } break;
@@ -227,6 +287,11 @@ GameState::GameState(Game* game) {
           setState(MainMenu);
         }
         break;
+      case Quit: {
+        InputObject quit;
+        quit.type = InputObject::Quit;
+        Input::singleton()->postEvent(quit);
+      } break;
       default:
         break;
     }

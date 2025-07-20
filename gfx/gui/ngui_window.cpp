@@ -39,9 +39,10 @@ void NGuiVerticalLayout::layoutElements(NGuiPanel* panel,
       panel->doLayout();
     }
 
-    pos.y -= child->getSize().y + getPadding();
-    max = glm::max(child->getSize() + posLocal + glm::vec2(getMargin()), max);
-    posLocal.y += child->getSize().y;
+    pos.y -= child->getDisplaySize().y + getPadding();
+    max = glm::max(child->getDisplaySize() + posLocal + glm::vec2(getMargin()),
+                   max);
+    posLocal.y += child->getDisplaySize().y + getPadding();
   }
   panel->setMinSize(max);
   panel->setSize(panel->getSize());
@@ -55,7 +56,7 @@ void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
   pos += getMargin();
   glm::vec2 max = glm::vec2(0);
   for (auto& child : children) {
-    child->setPosition(pos);
+    child->setPosition(pos + glm::vec2(0.f, child->getSize().y));
     glm::vec2 maxSize = child->getMaxSize();
     maxSize.y = glm::max(maxSize.y, panel->getSize().y);
     child->setMaxSize(maxSize);
@@ -66,7 +67,7 @@ void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
 
     pos.x += child->getSize().x + getPadding();
     max = glm::max(child->getSize() + posLocal + glm::vec2(getMargin()), max);
-    posLocal.x += child->getSize().x;
+    posLocal.x += child->getSize().x + getPadding();
   }
   panel->setMinSize(max);
   panel->setSize(panel->getSize());
@@ -84,10 +85,22 @@ glm::vec2 NGuiPanel::getContentSize() { glm::vec2 sz = getSize(); }
 
 NGuiWindow::NGuiWindow(NGuiManager* gui, gfx::Engine* engine)
     : NGui(gui, engine), NGuiPanel(gui) {
-  font = gui->getFontCache()->get("engine/gui/default.ttf", 14);
-  titleFont = gui->getFontCache()->get("engine/gui/default.ttf", 11);
+  font = gui->getFontCache()->get(NGUI_UI_FONT);
+  titleFont = gui->getFontCache()->get(NGUI_TITLE_FONT);
   closeButton = getResourceManager()->load<resource::Texture>(
       "engine/gui/close_button.png");
+  titleBar =
+      getResourceManager()->load<resource::Texture>("engine/gui/title_bar.png");
+  cornerRight =
+      getResourceManager()->load<resource::Texture>("engine/gui/corner_r.png");
+  cornerLeft =
+      getResourceManager()->load<resource::Texture>("engine/gui/corner_l.png");
+  horizBar =
+      getResourceManager()->load<resource::Texture>("engine/gui/hbar.png");
+  vertiLeftBar =
+      getResourceManager()->load<resource::Texture>("engine/gui/vlbar.png");
+  vertiRightBar =
+      getResourceManager()->load<resource::Texture>("engine/gui/vrbar.png");
 
   visible = false;
   title = "";
@@ -95,57 +108,87 @@ NGuiWindow::NGuiWindow(NGuiManager* gui, gfx::Engine* engine)
   setMinSize(glm::vec2(200, 10));
   setMaxSize(glm::vec2(UINT32_MAX, UINT32_MAX));
   setSize(getMinSize());
+  draggable = true;
+  closable = true;
+  hideDecorations = false;
 }
 
 void NGuiWindow::render(NGuiRenderer* renderer) {
   if (!visible) return;
 
+  frame();
+
+  glm::vec2 res = getEngine()->getTargetResolution();
   glm::vec2 size = getSize();
   glm::vec2 position = getPosition();
 
   renderer->setZIndex(UINT32_MAX);
 
-  if (renderer->mouseDownZone(position + glm::vec2(0, size.y),
-                              glm::vec2(size.x, 16)) == 1) {
-    position += Input::singleton()->getMouseDelta() *
-                Input::singleton()->getMouseSensitivity();
+  if (draggable) {
+    if (renderer->mouseDownZone(position + glm::vec2(0, size.y),
+                                glm::vec2(size.x - 16.f, 16)) == 1) {
+      /*glm::vec2 delta = Input::singleton()->getMouseDelta();
+      position += glm::vec2(delta.x, -delta.y) *
+      Input::singleton()->getMouseSensitivity();*/
+      position = Input::singleton()->getMousePosition();
+      position.y = res.y - position.y - size.y - 10.f;
+      position.x -= size.x / 2.f;
+    }
+  } else {
+    if (putMeInTheCenter) {
+      position = glm::floor((res / 2.f) - (getSize() / 2.f));
+    }
   }
 
-  position = glm::max(glm::vec2(0), position);
+  position = glm::max(glm::vec2(5.f), position);
 
   setPosition(position);
 
-  renderer->setColor(glm::vec3(0.5));
-  renderer->image(getEngine()->getWhiteTexture(), position, size);
-  renderer->setColor(glm::vec3(0.4));
-  renderer->image(getEngine()->getWhiteTexture(),
-                  position + glm::vec2(0, size.y), glm::vec2(size.x, 16));
+  if (!hideDecorations) {
+    renderer->setColor(glm::vec3(0.255, 0.299, 0.365));
+    renderer->image(getEngine()->getWhiteTexture(), position, size);
+    renderer->setColor(glm::vec3(1.0));
+    renderer->image(titleBar->getTexture(), position + glm::vec2(-5.f, size.y),
+                    glm::vec2(size.x - (closable ? 11.f : -5.f) + 5.f, 16));
+    renderer->image(horizBar->getTexture(), position + glm::vec2(11, -5),
+                    glm::vec2(size.x - 22.f, 5));
+    renderer->image(vertiRightBar->getTexture(), position + glm::vec2(-5, 0),
+                    glm::vec2(5.f, size.y));
+    renderer->image(vertiLeftBar->getTexture(), position + glm::vec2(size.x, 0),
+                    glm::vec2(5.f, size.y));
+    renderer->image(cornerLeft->getTexture(), position - glm::vec2(5),
+                    glm::vec2(16, 16));
+    renderer->image(cornerRight->getTexture(),
+                    position + glm::vec2(size.x - 11.f, -5), glm::vec2(16, 16));
 
-  renderer->setColor(glm::vec3(1.0));
-  if (!title.empty()) {
-    renderer->text(position + glm::vec2(5, size.y + 2.f), titleFont, 0, "%s",
-                   title.c_str());
+    renderer->setColor(glm::vec3(1.0));
+    if (!title.empty()) {
+      renderer->text(position + glm::vec2(5, size.y + 3.f), titleFont, 0, "%s",
+                     title.c_str());
+    }
+
+    if (closable) {
+      renderer->image(closeButton->getTexture(),
+                      position + glm::vec2(size.x - 16.f + 5.f, size.y),
+                      glm::vec2(16.f, 16.f));
+      if (renderer->mouseDownZone(position + glm::vec2(size.x - 16.f, size.y),
+                                  glm::vec2(16.f, 16.f)) == 1) {
+        close();
+      }
+    }
   }
-
-  renderer->image(closeButton->getTexture(),
-                  position + glm::vec2(size.x - 16.f, size.y),
-                  glm::vec2(16.f, 16.f));
-  if (renderer->mouseDownZone(position + glm::vec2(size.x - 16.f, size.y),
-                              glm::vec2(16.f, 16.f)) == 1) {
-    close();
-  }
-
-  frame();
 
   doLayout();
   elementRender(renderer);
 }
 
 void NGuiWindow::open() {
-  glm::vec2 size = getSize();
-  glm::vec2 res = getEngine()->getTargetResolution();
-  setPosition(glm::vec2((res.x / 2.f) - (size.x / 2.f),
-                        (res.y / 2.f) - (size.y / 2.f)));
+  if (draggable) {
+    glm::vec2 size = getSize();
+    glm::vec2 res = getEngine()->getTargetResolution();
+    setPosition(glm::vec2((res.x / 2.f) - (size.x / 2.f),
+                          (res.y / 2.f) - (size.y / 2.f)));
+  }
   visible = true;
 }
 

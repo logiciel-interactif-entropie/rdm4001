@@ -32,6 +32,8 @@ enum ShaderBinaryType {
   GlslPreprocessed,
   GlslSpirVBinary,
   __Max,
+
+  RawShaderCode,
 };
 
 class BaseTexture {

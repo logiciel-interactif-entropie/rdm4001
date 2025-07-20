@@ -71,6 +71,7 @@ GLContext::GLContext(void* hwnd) : BaseContext(hwnd) {
   Log::printf(LOG_EXTERNAL, "Renderer: %s", glGetString(GL_RENDERER));
   Log::printf(LOG_EXTERNAL, "Version:  %s", glGetString(GL_VERSION));
 
+  glEnable(GL_DITHER);
   glClearColor(0.0, 0.0, 0.0, 0.0);  // clear because the first frame takes so
                                      // long it renders garbled graphics
   glClear(GL_COLOR_BUFFER_BIT);
@@ -118,7 +119,7 @@ int GLContext::prepareSdl() {
   SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
   SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
   SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);

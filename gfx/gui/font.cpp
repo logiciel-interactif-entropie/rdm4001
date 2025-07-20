@@ -5,6 +5,7 @@
 #include <format>
 
 #include "SDL_error.h"
+#include "SDL_ttf.h"
 #include "filesystem.hpp"
 #include "logging.hpp"
 namespace rdm::gfx::gui {
@@ -25,7 +26,7 @@ OutFontTexture FontRender::render(Font* font, const char* text) {
   color.a = 255;
   surf = TTF_RenderUTF8_Blended(font->font, text, color);
   if (!surf) {
-    Log::printf(LOG_ERROR, "TTF render returned null, %s", SDL_GetError());
+    Log::printf(LOG_ERROR, "TTF render returned null, %s", TTF_GetError());
     t.data = NULL;
     return t;
   }
@@ -73,7 +74,7 @@ OutFontTexture FontRender::renderWrapped(Font* font, const char* text,
   color.a = 255;
   surf = TTF_RenderUTF8_Blended_Wrapped(font->font, text, color, wraplength);
   if (!surf) {
-    Log::printf(LOG_ERROR, "TTF render returned null, %s", SDL_GetError());
+    Log::printf(LOG_ERROR, "TTF render returned null, %s", TTF_GetError());
     t.data = NULL;
     return t;
   }

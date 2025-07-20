@@ -1,5 +1,6 @@
 #include "rendercommand.hpp"
 
+#include <exception>
 #include <format>
 #include <glm/ext/matrix_transform.hpp>
 
@@ -100,7 +101,10 @@ void RenderList::render(gfx::Engine* engine) {
                               {.vec2 = command.getScale().value()});
         needsRebind = true;
       }
-      if (needsRebind) program->bind();
+      try {
+        if (needsRebind) program->bind();
+      } catch (std::exception& e) {
+      }
     }
     DirtyFields df = command.render(engine);
     if (df.program && program) program->bind();

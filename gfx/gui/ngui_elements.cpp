@@ -3,8 +3,6 @@
 #include "font.hpp"
 #include "ngui.hpp"
 
-#define UI_FONT "engine/gui/default.ttf", 14
-
 namespace rdm::gfx::gui {
 void TextLabel::updateText() {
   if (!dirty) return;
@@ -12,40 +10,49 @@ void TextLabel::updateText() {
 
   Font* toUse = font;
   if (!toUse) {
-    toUse = getGuiManager()->getFontCache()->get(UI_FONT);
+    toUse = getGuiManager()->getFontCache()->get(NGUI_UI_FONT);
   }
 
   OutFontTexture t = FontRender::renderWrapped(
       toUse, text.size() ? text.c_str() : " ",
-      std::min(maxWidth, (unsigned int)getMaxSize().x));
+      autowrap ? std::min(maxWidth, (unsigned int)getMaxSize().x) : 0);
   textTexture->upload2d(t.w, t.h, DtUnsignedByte, BaseTexture::RGBA, t.data, 0);
   setMinSize(glm::vec2(t.w, t.h));
   setSize(getSize());
+  color = glm::vec3(1.0);
 }
 
 void TextLabel::elementRender(NGuiRenderer* renderer) {
   updateText();
 
-  renderer->setColor(glm::vec3(1.0));
+  renderer->setColor(color);
   glm::vec2 p = getPosition();
   p.y -= getMinSize().y;
   renderer->image(textTexture.get(), p, getMinSize());
 }
 
 void TextInput::elementRender(NGuiRenderer* renderer) {
-  if (text != (prefix + textData)) dirty = true;
+  std::string newText;
   if (std::string(textData).empty() && !emptyText.empty()) {
-    text = emptyText;
+    newText = emptyText;
+    setColor(glm::vec3(0.5));
   } else {
-    text = prefix + textData;
+    newText = prefix + textData;
+    setColor(glm::vec3(1.0));
+  }
+  if (text != newText) {
+    dirty = true;
+    text = newText;
   }
 
   updateText();
 
+  setSize(getSize());
+
   glm::vec2 p = getPosition();
   p.y -= getMinSize().y;
 
-  int status = renderer->mouseDownZone(p, getSize());
+  int status = renderer->mouseDownZone(p, getDisplaySize());
   bool value = false;
   switch (status) {
     default:
@@ -61,6 +68,9 @@ void TextInput::elementRender(NGuiRenderer* renderer) {
       break;
   }
 
+  renderer->image(getGuiManager()->getEngine()->getWhiteTexture(), p,
+                  getDisplaySize());
+
   if (value) {
     if (!debounce) {
       getGuiManager()->setCurrentText(textData, 65535);
@@ -75,9 +85,6 @@ void TextInput::elementRender(NGuiRenderer* renderer) {
       debounce = false;
     }
   }
-
-  renderer->image(getGuiManager()->getEngine()->getWhiteTexture(), p,
-                  getMinSize());
   TextLabel::elementRender(renderer);
 }
 
@@ -117,6 +124,15 @@ void Button::elementRender(NGuiRenderer* renderer) {
   renderer->image(getGuiManager()->getEngine()->getWhiteTexture(), p,
                   getMinSize());
 
+  setSize(getSize());
   TextLabel::elementRender(renderer);
+}
+
+void Image::elementRender(NGuiRenderer* renderer) {
+  glm::vec2 p = getPosition();
+  p.y -= getSize().y;
+  if (texture) {
+    renderer->image(texture, p, getSize());
+  }
 }
 }  // namespace rdm::gfx::gui

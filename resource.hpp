@@ -141,6 +141,9 @@ class Texture : public BaseGfxResource {
   virtual void gfxDelete();
   virtual void gfxUpload(gfx::Engine* engine);
 
+  int getWidth() { return width; };
+  int getHeight() { return height; };
+
   virtual void onLoadData(common::OptionalData data);
 
   virtual Type getType() { return BaseResource::Texture; }

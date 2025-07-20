@@ -63,6 +63,18 @@ void GLDevice::setBlendState(BlendState a, BlendState b) {
   }
 }
 
+void GLDevice::setBlendStateSeperate(BlendState aCol, BlendState bCol,
+                                     BlendState aDep, BlendState bDep) {
+  if (aCol == DDisabled || bCol == DDisabled || aDep == DDisabled ||
+      bDep == DDisabled) {
+    glDisable(GL_BLEND);
+  } else {
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(bsMapping[aCol], bsMapping[bCol], bsMapping[aDep],
+                        bsMapping[bDep]);
+  }
+}
+
 void GLDevice::setCullState(CullState s) {
   switch (s) {
     case FrontCCW:

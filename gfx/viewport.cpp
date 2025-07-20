@@ -2,8 +2,10 @@
 
 #include "base_types.hpp"
 #include "engine.hpp"
+#include "lighting.hpp"
 namespace rdm::gfx {
-Viewport::Viewport(gfx::Engine* engine, ViewportGfxSettings settings) {
+Viewport::Viewport(gfx::Engine* engine, ViewportGfxSettings settings)
+    : lightingSystem(engine) {
   this->engine = engine;
   this->settings = settings;
 
@@ -81,6 +83,7 @@ void Viewport::applyRenderState() {
 
 void* Viewport::bind() {
   camera.updateCamera(glm::vec2(settings.resolution.x, settings.resolution.y));
+  lightingSystem.tick();
   frameCamera = camera;
   return engine->getDevice()->bindFramebuffer(framebuffer.get());
 }

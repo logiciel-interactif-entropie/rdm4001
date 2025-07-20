@@ -17,6 +17,8 @@ class GLDevice : public BaseDevice {
   virtual void setDepthState(DepthStencilState s);
   virtual void setStencilState(DepthStencilState s);
   virtual void setBlendState(BlendState a, BlendState b);
+  virtual void setBlendStateSeperate(BlendState aCol, BlendState bCol,
+                                     BlendState aDep, BlendState bDep);
   virtual void setCullState(CullState s);
 
   virtual void clear(float r, float g, float b, float a);

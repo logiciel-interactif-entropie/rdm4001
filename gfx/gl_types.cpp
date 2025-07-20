@@ -270,6 +270,7 @@ void GLProgram::link() {
     GLchar* code = (GLchar*)shader.code.c_str();
     int codeLength[] = {(int)shader.code.size()};
     switch (shader.type) {
+      case RawShaderCode:
       case GlslPreprocessed: {
         glShaderSource(_shader, 1, &code, (const GLint*)&codeLength);
         glCompileShader(_shader);

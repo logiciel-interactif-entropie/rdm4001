@@ -67,6 +67,8 @@ class BaseDevice {
   virtual void setDepthState(DepthStencilState s) = 0;
   virtual void setStencilState(DepthStencilState s) = 0;
   virtual void setBlendState(BlendState a, BlendState b) = 0;
+  virtual void setBlendStateSeperate(BlendState aCol, BlendState bCol,
+                                     BlendState aDep, BlendState bDep) = 0;
   virtual void setCullState(CullState s) = 0;
 
   virtual void readPixels(int x, int y, int w, int h, void* d) = 0;

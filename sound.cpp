@@ -14,7 +14,7 @@
 #include "settings.hpp"
 
 namespace rdm {
-static CVar snd_master_gain("snd_master_gain", "0.25",
+static CVar snd_master_gain("snd_master_gain", "0.75",
                             CVARF_SAVE | CVARF_GLOBAL);
 
 SoundCache::SoundCache(SoundManager* manager) { this->manager = manager; }
@@ -50,6 +50,8 @@ void SoundEmitter::play(Sound* sound) {
     alSourceQueueBuffers(source, 10, streamBuffer);
 
     Log::printf(LOG_DEBUG, "Playing stream");
+
+    if (looping) alSourcei(source, AL_LOOPING, 0);
   }
 
   alSourcePlay(source);
@@ -66,7 +68,8 @@ void SoundEmitter::stop() {
 }
 
 void SoundEmitter::setLooping(bool looping) {
-  alSourcei(source, AL_LOOPING, looping);
+  if (playingSound && playingSound->getLoadType() == Sound::Buffer)
+    alSourcei(source, AL_LOOPING, looping);
   this->looping = looping;
 }
 

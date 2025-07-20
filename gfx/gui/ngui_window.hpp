@@ -2,6 +2,9 @@
 #include "ngui.hpp"
 #include "resource.hpp"
 
+#define NGUI_UI_FONT "engine/gui/msgothic.ttf", 14
+#define NGUI_TITLE_FONT "engine/gui/msgothic.ttf", 11
+
 namespace rdm::gfx::gui {
 class NGuiStyle {};
 
@@ -28,6 +31,7 @@ class NGuiElement {
   glm::vec2 getMaxSize() { return maxSize; }
   glm::vec2 getMinSize() { return minSize; }
   glm::vec2 getSize() { return size; }
+  glm::vec2 getDisplaySize() { return glm::max(minSize, size); }
   glm::vec2 getPosition() { return position; }
   NGuiPanel* getParent() { return parent; }
   NGuiManager* getGuiManager() { return manager; }
@@ -97,12 +101,26 @@ class NGuiWindow : public NGui, public NGuiPanel {
   Font* font;
   Font* titleFont;
   resource::Texture* closeButton;
+  resource::Texture* titleBar;
+  resource::Texture* cornerRight;
+  resource::Texture* cornerLeft;
+  resource::Texture* horizBar;
+  resource::Texture* vertiLeftBar;
+  resource::Texture* vertiRightBar;
+  bool draggable;
+  bool closable;
   bool visible;
+  bool putMeInTheCenter;
+  bool hideDecorations;
 
  public:
   NGuiWindow(NGuiManager* gui, gfx::Engine* engine);
 
   void setTitle(std::string title) { this->title = title; };
+  void setClosable(bool closable) { this->closable = closable; }
+  void setDraggable(bool draggable) { this->draggable = draggable; }
+  void setCenter(bool center) { this->putMeInTheCenter = center; }
+  void setHideDecorations(bool hide) { hideDecorations = hide; }
 
   void open();
   void close();

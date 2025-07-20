@@ -246,8 +246,8 @@ void Settings::load() {
     Log::printf(LOG_ERROR, "Couldn't open %s", settingsPath.c_str());
   }
 
-  FILE* sjp = fopen(settingsPrivatePath.c_str(), "r");
-  if (sjp) {
+  sj = fopen(settingsPrivatePath.c_str(), "r");
+  if (sj) {
     fseek(sj, 0, SEEK_END);
     int sjl = ftell(sj);
     fseek(sj, 0, SEEK_SET);
@@ -276,6 +276,8 @@ void Settings::load() {
     }
 
     free(sjc);
+  } else {
+    Log::printf(LOG_ERROR, "Couldn't open %s", settingsPrivatePath.c_str());
   }
 }
 

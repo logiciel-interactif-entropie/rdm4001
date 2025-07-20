@@ -24,6 +24,7 @@
 #include "gfx/apis.hpp"
 #include "gfx/gl_context.hpp"
 #include "gfx/stb_image.h"
+#include "http.hpp"
 #include "input.hpp"
 #include "logging.hpp"
 #include "network/network.hpp"
@@ -31,6 +32,7 @@
 #include "scheduler.hpp"
 #include "security.hpp"
 #include "settings.hpp"
+#include "worker.hpp"
 
 #ifdef __linux
 #include <signal.h>
@@ -50,6 +52,8 @@ static CVar cl_savedwindowpos("cl_savedwindowpos", "-1 -1",
 Game::Game(bool silence) {
   if (!Fun::preFlightChecks()) abort();  // clearly not safe to run
   this->silence = silence;
+
+  WorkerManager::singleton();  // just make sure workermanager is running
 
   if (!silence) Log::printf(LOG_INFO, "Hello World!");
 
@@ -73,7 +77,7 @@ Game::Game(bool silence) {
     if (cl_copyright.getBool()) Log::printf(LOG_INFO, "%s", copyright());
   }
 
-  iconImg = "dat0/icon.png";
+  iconImg = "engine/assets/icon.png";
   dirtyIcon = true;
 }
 
@@ -498,5 +502,7 @@ void Game::mainLoop() {
   if (world) {
     gfxEngine->getContext()->setCurrent();
   }
+
+  WorkerManager::singleton()->shutdown();
 }
 }  // namespace rdm
