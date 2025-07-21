@@ -60,7 +60,7 @@ void HttpManager::handleWebRequest(CURL* handle, std::string url, Request rq,
   curl_easy_setopt(handle, CURLOPT_WRITEDATA, &rd);
   struct curl_slist* list = NULL;
   for (auto& [name, value] : rq.headers) {
-    curl_slist_append(list, std::format("{}: {}", name, value).c_str());
+    list = curl_slist_append(list, std::format("{}: {}", name, value).c_str());
   }
   curl_easy_setopt(handle, CURLOPT_HTTPHEADER, list);
   curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, true);

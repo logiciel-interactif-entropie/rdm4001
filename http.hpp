@@ -24,6 +24,8 @@ class HttpManager {
   struct Request {
     std::unordered_map<std::string, std::string> headers;
     RequestType type;
+
+    Request() { headers["Content-Type"] = "application/json"; }
   };
 
   struct Response {

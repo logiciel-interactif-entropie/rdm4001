@@ -110,4 +110,20 @@ class Image : public NGuiElement {
 
   virtual void elementRender(NGuiRenderer* renderer);
 };
+
+class ImageButton : public Image {
+  bool debounce;
+  std::optional<std::function<void()>> pressed;
+
+  resource::Texture* textureOver;
+
+ public:
+  ImageButton(NGuiManager* manager);
+
+  void setOverTexture(resource::Texture* texture) { textureOver = texture; }
+
+  void setPressed(std::function<void()> pressed) { this->pressed = pressed; };
+
+  virtual void elementRender(NGuiRenderer* renderer);
+};
 }  // namespace rdm::gfx::gui

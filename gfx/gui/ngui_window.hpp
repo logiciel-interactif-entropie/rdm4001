@@ -16,6 +16,7 @@ class NGuiElement {
   NGuiManager* manager;
   glm::vec2 maxSize, minSize, size;
   glm::vec2 position;
+  bool showThis;
 
  public:
   NGuiElement(NGuiManager* manager);
@@ -27,6 +28,7 @@ class NGuiElement {
     this->size = glm::min(maxSize, glm::max(minSize, size));
   }
   void setPosition(glm::vec2 position) { this->position = position; }
+  void setShowa(bool show) { showThis = show; }
 
   glm::vec2 getMaxSize() { return maxSize; }
   glm::vec2 getMinSize() { return minSize; }
@@ -35,6 +37,7 @@ class NGuiElement {
   glm::vec2 getPosition() { return position; }
   NGuiPanel* getParent() { return parent; }
   NGuiManager* getGuiManager() { return manager; }
+  bool getShowa() { return showThis; }
 
   virtual void elementRender(NGuiRenderer* renderer) {};
 };
@@ -126,6 +129,7 @@ class NGuiWindow : public NGui, public NGuiPanel {
   void close();
   bool isVisible() { return visible; }
 
+  virtual void opening() {};
   virtual void closing() {};
   virtual void frame() {};
   virtual void render(NGuiRenderer* renderer);

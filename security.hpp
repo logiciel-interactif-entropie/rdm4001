@@ -27,6 +27,8 @@ class SecurityManager {
   bool verify(SignedMessage msg, std::string key);
   void generateKeyPair();
 
+  std::string getPublicKey();
+
 #ifndef NDEBUG
   void dumpSecurityManagerKeys();
 #endif

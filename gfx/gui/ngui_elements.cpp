@@ -1,7 +1,10 @@
 #include "ngui_elements.hpp"
 
 #include "font.hpp"
+#include "game.hpp"
 #include "ngui.hpp"
+#include "ngui_window.hpp"
+#include "world.hpp"
 
 namespace rdm::gfx::gui {
 void TextLabel::updateText() {
@@ -27,7 +30,7 @@ void TextLabel::elementRender(NGuiRenderer* renderer) {
 
   renderer->setColor(color);
   glm::vec2 p = getPosition();
-  p.y -= getMinSize().y;
+  p.y -= getDisplaySize().y;
   renderer->image(textTexture.get(), p, getMinSize());
 }
 
@@ -133,6 +136,29 @@ void Image::elementRender(NGuiRenderer* renderer) {
   p.y -= getSize().y;
   if (texture) {
     renderer->image(texture, p, getSize());
+  }
+}
+
+ImageButton::ImageButton(NGuiManager* manager) : Image(manager) {
+  textureOver = NULL;
+}
+
+void ImageButton::elementRender(NGuiRenderer* renderer) {
+  setTexture(getGuiManager()
+                 ->getEngine()
+                 ->getWorld()
+                 ->getGame()
+                 ->getResourceManager()
+                 ->load<resource::Texture>("engine/gui/button1.png"));
+
+  Image::elementRender(renderer);
+
+  setMinSize(glm::vec2(32));
+  setSize(glm::vec2(32));
+  glm::vec2 p = getPosition();
+  p.y -= 32;
+  if (textureOver) {
+    renderer->image(textureOver->getTexture(), p, glm::vec3(32));
   }
 }
 }  // namespace rdm::gfx::gui

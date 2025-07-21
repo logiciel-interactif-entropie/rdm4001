@@ -16,6 +16,7 @@ NGuiElement::NGuiElement(NGuiManager* manager) {
   size = glm::vec2(0, 0);
   minSize = glm::vec2(0, 0);
   maxSize = glm::vec2(INT32_MAX, INT32_MAX);
+  showThis = true;
 }
 
 NGuiElement::~NGuiElement() {}
@@ -30,6 +31,8 @@ void NGuiVerticalLayout::layoutElements(NGuiPanel* panel,
   pos.y -= getMargin();
   glm::vec2 max = glm::vec2(0);
   for (auto& child : children) {
+    if (!child->getShowa()) continue;
+
     glm::vec2 maxSize = child->getMaxSize();
     maxSize.x = glm::max(maxSize.x, panel->getSize().x);
     child->setMaxSize(maxSize);
@@ -56,6 +59,8 @@ void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
   pos += getMargin();
   glm::vec2 max = glm::vec2(0);
   for (auto& child : children) {
+    if (!child->getShowa()) continue;
+
     child->setPosition(pos + glm::vec2(0.f, child->getSize().y));
     glm::vec2 maxSize = child->getMaxSize();
     maxSize.y = glm::max(maxSize.y, panel->getSize().y);
@@ -75,7 +80,7 @@ void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
 
 void NGuiPanel::elementRender(NGuiRenderer* renderer) {
   for (auto child : children) {
-    child->elementRender(renderer);
+    if (child->getShowa()) child->elementRender(renderer);
   }
 }
 
@@ -190,6 +195,7 @@ void NGuiWindow::open() {
                           (res.y / 2.f) - (size.y / 2.f)));
   }
   visible = true;
+  opening();
 }
 
 void NGuiWindow::close() {

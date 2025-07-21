@@ -18,6 +18,10 @@ static CVar security_public_key("security_public_key", "",
 static CVar security_private_key("security_private_key", "",
                                  CVARF_GLOBAL | CVARF_SAVE | CVARF_HIDDEN);
 
+std::string SecurityManager::getPublicKey() {
+  return security_public_key.getValue();
+}
+
 void SecurityManager::generateKeyPair() {
   rsa_key key;
   const int bitsize = 4096;
