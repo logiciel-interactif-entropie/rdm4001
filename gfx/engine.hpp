@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "apis.hpp"
 #include "base_context.hpp"
 #include "base_device.hpp"
 #include "camera.hpp"
@@ -56,6 +57,8 @@ class TextureCache {
 class Engine {
   friend class RenderJob;
   SchedulerJob* renderJob;
+
+  ApiFactory::ApiReg regs;
 
   std::unique_ptr<BaseContext> context;
   std::unique_ptr<BaseDevice> device;
@@ -180,5 +183,7 @@ class Engine {
 
   void* setViewport(Viewport* viewport);
   void finishViewport(void* _);
+
+  std::vector<BaseContext::DisplayMode> getDisplayModes();
 };
 }  // namespace rdm::gfx

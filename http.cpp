@@ -51,6 +51,10 @@ void HttpManager::handleWebRequest(CURL* handle, std::string url, Request rq,
     curl_url_cleanup(u);
   }
 
+#ifndef NDEBUG
+  Log::printf(LOG_DEBUG, "Async web request %s", url.c_str());
+#endif
+
   curl_easy_setopt(handle, CURLOPT_URL, url.c_str());
   Response rsp;
 

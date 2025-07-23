@@ -503,6 +503,8 @@ void Game::mainLoop() {
     gfxEngine->getContext()->setCurrent();
   }
 
+  gameState.reset();  // needs to be deinitialized before workermanager cause
+                      // gamestate might want to run web requests before dying
   WorkerManager::singleton()->shutdown();
 }
 }  // namespace rdm

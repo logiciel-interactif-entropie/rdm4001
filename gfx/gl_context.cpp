@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #include "SDL_video.h"
+#include "base_context.hpp"
 #include "logging.hpp"
 #include "settings.hpp"
 
@@ -130,5 +131,24 @@ int GLContext::prepareSdl() {
   SDL_GL_LoadLibrary(NULL);
 
   return SDL_WINDOW_OPENGL;
+}
+
+std::vector<BaseContext::DisplayMode> GLContext::getSupportedDisplayModes() {
+  std::vector<BaseContext::DisplayMode> modes;
+  for (int displayIdx = 0; displayIdx < SDL_GetNumVideoDisplays();
+       displayIdx++) {
+    for (int modeIdx = 0; modeIdx < SDL_GetNumDisplayModes(displayIdx);
+         modeIdx++) {
+      SDL_DisplayMode dpmMode;
+      SDL_GetDisplayMode(displayIdx, modeIdx, &dpmMode);
+      DisplayMode mode;
+      mode.w = dpmMode.w;
+      mode.h = dpmMode.h;
+      mode.display = displayIdx;
+      mode.refresh_rate = dpmMode.refresh_rate;
+      modes.push_back(mode);
+    }
+  }
+  return modes;
 }
 }  // namespace rdm::gfx::gl

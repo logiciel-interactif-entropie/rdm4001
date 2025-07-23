@@ -10,6 +10,7 @@ class Fun {
   static std::string getModuleName();
   static std::string getSystemUsername();
   static std::string getLocalDataDirectory();
+  static int getNumCpus();
 };
 
 class Math {

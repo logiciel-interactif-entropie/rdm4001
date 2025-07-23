@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include "apis.hpp"
+#include "base_context.hpp"
 #include "filesystem.hpp"
 #include "game.hpp"
 #include "gfx/base_device.hpp"
@@ -367,8 +368,7 @@ Engine::Engine(World* world, void* hwnd) {
   forcedAspect = 0.0;
 
   CVar* r_api = Settings::singleton()->getCvar("r_api");
-  ApiFactory::ApiReg regs =
-      ApiFactory::singleton()->getFunctions(r_api->getValue().c_str());
+  regs = ApiFactory::singleton()->getFunctions(r_api->getValue().c_str());
 
   context.reset(regs.createContext(hwnd));
   std::scoped_lock lock(context->getMutex());
@@ -616,5 +616,9 @@ void Engine::finishViewport(void* _) {
       viewport->applyRenderState();
     }
   }
+}
+
+std::vector<BaseContext::DisplayMode> Engine::getDisplayModes() {
+  return regs.getSupportedDisplayModes();
 }
 }  // namespace rdm::gfx

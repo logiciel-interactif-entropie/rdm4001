@@ -12,6 +12,8 @@ class ApiFactory {
   struct ApiReg {
     std::function<BaseDevice*(BaseContext*)> createDevice;
     std::function<BaseContext*(void*)> createContext;
+    std::function<std::vector<BaseContext::DisplayMode>()>
+        getSupportedDisplayModes;
     std::function<int()> prepareSdl;
   };
 
@@ -49,6 +51,9 @@ class ApiInstantiator {
       return (BaseContext*)(new Context(hwnd));
     };
     reg.prepareSdl = []() { return Context::prepareSdl(); };
+    reg.getSupportedDisplayModes = []() {
+      return Context::getSupportedDisplayModes();
+    };
     ApiFactory::singleton()->registerFunctions(nam, reg);
   }
 };

@@ -2,12 +2,16 @@
 
 #include <thread>
 
+#include "fun.hpp"
 #include "logging.hpp"
 namespace rdm {
 WorkerManager::WorkerManager() {
+  Log::printf(LOG_DEBUG, "Starting worker manager with %i worker(s)",
+              Fun::getNumCpus());
+
   running = true;
   managerThread = std::thread(std::bind(&WorkerManager::manager, this));
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < Fun::getNumCpus(); i++) {
     availableThreads.push_back(new Thread());
   }
 }

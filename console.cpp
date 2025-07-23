@@ -81,6 +81,8 @@ class ConsoleWindow : public gfx::gui::NGuiWindow {
 
   void buttonPressed() {
     std::string cmd = consoleLine->getLine();
+    if (cmd.empty()) return;
+    Log::printf(LOG_INFO, "] %s", cmd.c_str());
     getGame()->getConsole()->command(cmd);
     consoleLine->setText("");
   }
@@ -163,8 +165,9 @@ void Console::command(std::string in) {
       std::string rest = r.rest();
       if (rest.empty())
         Log::printf(LOG_INFO, "= \"%s\"", cvar->getValue().c_str());
-      else
+      else {
         cvar->setValue(r.rest());
+      }
     } else {
       Log::printf(LOG_ERROR, "Unknown cvar or command %s", in.c_str());
     }

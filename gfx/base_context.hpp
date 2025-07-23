@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <mutex>
+#include <vector>
 
 namespace rdm::gfx {
 /**
@@ -17,6 +18,13 @@ class BaseContext {
  public:
   BaseContext(void* hwnd);
   virtual ~BaseContext() {};
+
+  struct DisplayMode {
+    uint32_t format;
+    int w, h;
+    int refresh_rate;
+    int display;
+  };
 
   std::mutex& getMutex() { return mutex; }
 

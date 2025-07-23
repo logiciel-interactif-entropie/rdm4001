@@ -298,4 +298,5 @@ GameState::GameState(Game* game) {
   });
 }
 
+GameState::~GameState() {}
 }  // namespace rdm

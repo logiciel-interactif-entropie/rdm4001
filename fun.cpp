@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 
 #include <format>
 #include <fstream>
@@ -15,6 +16,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <pwd.h>
+#include <sched.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -34,6 +37,8 @@
 #include <string.h>
 
 namespace rdm {
+static CVar perf_priority("perf_priority", "0", CVARF_SAVE | CVARF_GLOBAL);
+
 bool Fun::preFlightChecks() {
 #ifdef __linux
   FILE* fp = fopen("/proc/sys/fs/binfmt_misc/WSLInterop", "r");
@@ -42,6 +47,18 @@ bool Fun::preFlightChecks() {
         "Your graphics card is not supported by RDM4001, and thus it cannot "
         "start. Sorry\n");
     return false;
+  }
+
+  if (perf_priority.getInt()) {
+    int which = PRIO_PROCESS;
+    id_t pid = getpid();
+    int priority = perf_priority.getInt();
+    if (setpriority(which, pid, priority) == -1) {
+      Log::printf(LOG_ERROR, "Could not set priority to %i, %s", priority,
+                  strerror(errno));
+    } else {
+      Log::printf(LOG_DEBUG, "Priority is now %i", priority);
+    }
   }
 #endif
   return true;  // OK
@@ -113,6 +130,16 @@ std::string Fun::getModuleName() {
   return "Generic";
 #else
   static_assert(false, "unrecognized platform");
+#endif
+}
+
+int Fun::getNumCpus() {
+#if defined(__linux)
+  cpu_set_t cpuset;
+  sched_getaffinity(0, sizeof(cpuset), &cpuset);
+  return CPU_COUNT(&cpuset);
+#else
+  return 10;
 #endif
 }
 }  // namespace rdm

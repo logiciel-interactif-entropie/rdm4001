@@ -19,6 +19,7 @@ class GLContext : public BaseContext {
   virtual void swapBuffers();
   virtual glm::ivec2 getBufferSize();
 
+  static std::vector<DisplayMode> getSupportedDisplayModes();
   static int prepareSdl();
 
   SDL_GLContext getContext() { return context; }

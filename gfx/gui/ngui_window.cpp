@@ -146,6 +146,7 @@ void NGuiWindow::render(NGuiRenderer* renderer) {
   }
 
   position = glm::max(glm::vec2(5.f), position);
+  position = glm::min(res - size - glm::vec2(5.f, 16.f), position);
 
   setPosition(position);
 

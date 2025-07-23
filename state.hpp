@@ -18,6 +18,7 @@ class GameState {
 
  public:
   GameState(Game* game);
+  virtual ~GameState();
 
   Game* getGame() { return game; }
 

@@ -39,9 +39,10 @@ class HttpManager {
     }
   };
 
-  std::future<HttpManager::Response> get(std::string url, Request rq);
+  std::future<HttpManager::Response> get(std::string url,
+                                         Request rq = Request());
   std::future<HttpManager::Response> post(std::string url, std::string data,
-                                          Request rq);
+                                          Request rq = Request());
 
  private:
   void handleWebRequest(CURL* handle, std::string url, Request rq,

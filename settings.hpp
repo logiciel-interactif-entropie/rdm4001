@@ -22,6 +22,8 @@ typedef std::variant<std::string, int, float> Setting;
 
 #define CVARF_CONSOLE_ARGUMENT (1 << 5)
 
+#define CVARF_SETTING_AUDIO (1 << 8)
+
 class CVar {
   friend class Settings;
 
