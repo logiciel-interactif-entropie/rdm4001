@@ -7,6 +7,18 @@ It is designed for FPS games and simple experiments, but within this repo are ot
 
 It is licensed under the GNU AGPLv3, but I am willing to dual license it for proprietary purposes (provided the pay is just...)
 
-Dependencies: SDL2, SDL2_ttf, cglm, glm, OpenAL, assimp, ENet, Bullet3d, Boost (program_options), libsndfile
+Dependencies: 
+- SDL2
+- SDL2_ttf 
+- assimp
+- bullet3d
+- cglm
+- enet
+- glm
+- libcurl
+- libmpv (optional)
+- libsndfile
+- libtomcrypt
+- openal
 
 [Discord](https://discord.gg/rjVUKtzShv)
