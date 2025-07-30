@@ -45,7 +45,6 @@ class GLTexture : public BaseTexture {
 
 class GLProgram : public BaseProgram {
   GLuint program;
-  std::map<std::string, GLuint> locations;
 
  public:
   GLProgram();

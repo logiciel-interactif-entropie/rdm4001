@@ -45,6 +45,10 @@ void Log::addLogMessage(LogMessage m) {
         clr = HBLK;
         lvl = "DEBUG";
         break;
+      case LOG_FIXME:
+        clr = YEL;
+        lvl = "FIXME";
+        break;
       case LOG_INFO:
         clr = WHT;
         lvl = "INFO";

@@ -61,7 +61,7 @@ void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
   for (auto& child : children) {
     if (!child->getShowa()) continue;
 
-    child->setPosition(pos + glm::vec2(0.f, child->getSize().y));
+    child->setPosition(pos);
     glm::vec2 maxSize = child->getMaxSize();
     maxSize.y = glm::max(maxSize.y, panel->getSize().y);
     child->setMaxSize(maxSize);

@@ -10,6 +10,11 @@ Player::Player(NetworkManager* manager, EntityId id) : Entity(manager, id) {
   remotePeerId.set(-1);
 }
 
+Peer::Peer() {
+  playerEntity = NULL;
+  peer = NULL;
+}
+
 bool Player::isLocalPlayer() {
   if (getManager()->isBackend()) return false;
   return getManager()->getLocalPeer().playerEntity == this;

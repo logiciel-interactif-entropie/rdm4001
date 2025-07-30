@@ -1,5 +1,6 @@
 #include "worker.hpp"
 
+#include <chrono>
 #include <thread>
 
 #include "fun.hpp"
@@ -45,7 +46,7 @@ void WorkerManager::manager() {
         }
       }
     }
-    std::this_thread::yield();
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
   }
 
   if (processingThreads.size()) {
@@ -58,9 +59,13 @@ void WorkerManager::manager() {
         delete th;
       }
     }
+
+    processingThreads.clear();
   }
 
   for (auto& th : availableThreads) {
+    if (th->thread.joinable()) th->thread.join();
+
     delete th;
   }
 

@@ -122,6 +122,8 @@ int main(int argc, char** argv) {
         kind = shaderc_geometry_shader;
       } else if (shaderKey == "FSName") {
         kind = shaderc_fragment_shader;
+      } else {
+        continue;
       }
 
       std::string shaderPath = shaders.value();

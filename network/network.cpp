@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <stdexcept>
 
+#include "authentication.hpp"
 #include "console.hpp"
 #include "fun.hpp"
 #include "game.hpp"
@@ -21,11 +22,6 @@ static const char* disconnectReasons[] = {"Disconnect by engine",
                                           "Disconnect by user", "Timeout"};
 
 namespace rdm::network {
-Peer::Peer() {
-  playerEntity = NULL;
-  peer = NULL;
-}
-
 static CVar net_rate("net_rate", "60.0",
                      CVARF_SAVE | CVARF_NOTIFY | CVARF_REPLICATE |
                          CVARF_GLOBAL);
@@ -274,6 +270,12 @@ NetworkManager::NetworkManager(World* world) {
   userPassword = "";
 }
 
+void NetworkManager::setAuthenticationProvider(
+    IAuthenticationProvider* provider) {
+  authenticationProvider.reset(provider);
+  authenticationProvider->setManager(this);
+}
+
 void NetworkManager::listEntities() {
   for (auto& entity : entities) {
     Log::printf(LOG_INFO, "%i - %s", entity.first,
@@ -415,6 +417,10 @@ void NetworkManager::service() {
                   BitStream authenticateStream;
                   authenticateStream.write<PacketId>(AuthenticatePacket);
 
+                  authenticateStream.writeString(this->username);
+                  authenticateStream.writeString(password);
+                  authenticateStream.writeString(userPassword);
+
                   std::vector<unsigned char> test;
                   for (int i = 0; i < 128; i++) {
                     test.push_back(rand() % 0xff);
@@ -424,13 +430,14 @@ void NetworkManager::service() {
                       getGame()->getSecurityManager()->sign((char*)test.data(),
                                                             4));
 
-                  authenticateStream.writeString(this->username);
-                  authenticateStream.writeString(password);
-                  authenticateStream.writeString(userPassword);
-
-                  enet_peer_send(localPeer.peer, NETWORK_STREAM_META,
-                                 authenticateStream.createPacket(
-                                     ENET_PACKET_FLAG_RELIABLE));
+                  if (authenticationProvider) {
+                    authenticationProvider->sendPeerInfo(&localPeer,
+                                                         authenticateStream);
+                  } else {
+                    enet_peer_send(localPeer.peer, NETWORK_STREAM_META,
+                                   authenticateStream.createPacket(
+                                       ENET_PACKET_FLAG_RELIABLE));
+                  }
                 }
                 break;
               case AuthenticatePacket:
@@ -1164,6 +1171,8 @@ void NetworkManager::start(int port) {
     throw std::runtime_error("enet_host_create returned NULL");
   }
 
+  if (authenticationProvider) authenticationProvider->serverSetup();
+
   Log::printf(LOG_INFO, "Started server on port %i", port);
 }
 
@@ -1287,6 +1296,12 @@ void NetworkManager::sendCustomEvent(CustomEventID id, BitStream& stream) {
 
 void NetworkManager::sendCustomEvent(int peerId, CustomEventID id,
                                      BitStream& stream) {}
+
+void NetworkManager::sendPacket(Peer* peer, BitStream& stream, int streamId,
+                                int flags) {
+  std::scoped_lock l(crazyThingsMutex);
+  enet_peer_send(peer->peer, streamId, stream.createPacket(flags));
+}
 
 void NetworkManager::initialize() { enet_initialize(); }
 

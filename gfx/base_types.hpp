@@ -252,9 +252,19 @@ class BaseProgram {
   virtual void link() = 0;
   virtual void bind() = 0;
 
+  void addBinding(std::string bindingName, int bindingIndex) {
+    bindings[bindingName] = bindingIndex;
+  }
+
+  int getBinding(std::string bindingName) { return bindings[bindingName]; }
+  bool hasBinding(std::string bindingName) {
+    return bindings.find(bindingName) != bindings.end();
+  }
+
  protected:
   std::map<Shader, ShaderFile> shaders;
   std::map<std::string, std::pair<ParameterInfo, Parameter>> parameters;
+  std::map<std::string, int> bindings;
 };
 
 /**

@@ -21,13 +21,6 @@ class HttpManager {
   CURLM* getHandle() { return curl_multi; }
   void setBaseUrl(std::string baseUrl) { this->baseUrl = baseUrl; }
 
-  struct Request {
-    std::unordered_map<std::string, std::string> headers;
-    RequestType type;
-
-    Request() { headers["Content-Type"] = "application/json"; }
-  };
-
   struct Response {
     std::unordered_map<std::string, std::string> headers;
     std::vector<char> response;
@@ -37,6 +30,14 @@ class HttpManager {
       if (response.empty()) return std::string("<empty response>");
       return std::string(response.begin(), response.end());
     }
+  };
+
+  struct Request {
+    std::unordered_map<std::string, std::string> headers;
+    std::function<void(Response&)> requestFinished;
+    RequestType type;
+
+    Request() { headers["Content-Type"] = "application/json"; }
   };
 
   std::future<HttpManager::Response> get(std::string url,

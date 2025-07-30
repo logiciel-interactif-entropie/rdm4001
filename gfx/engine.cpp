@@ -212,7 +212,7 @@ class RenderJob : public SchedulerJob {
         // clear buffers
         device->targetAttachments(&drawBuffers[0], 1);
         device->clear(engine->clearColor.x, engine->clearColor.y,
-                      engine->clearColor.z, 0.0);
+                      engine->clearColor.z, 1.0);
         if (!r_disablepost.getBool() && bloomEnabled) {
           device->targetAttachments(&drawBuffers[1], 1);
           device->clear(0.0, 0.0, 0.0, 0.0);
@@ -306,17 +306,27 @@ class RenderJob : public SchedulerJob {
         profiler.fun("Post process: Draw");
         engine->renderFullscreenQuad(
             engine->viewport->get(0), NULL, [this](BaseProgram* p) {
-              if (r_bloom.getBool())
-                p->setParameter(
-                    r_samples.getInt() ? "texture1ms" : "texture1", DtSampler,
-                    BaseProgram::Parameter{
-                        .texture.slot = 1,
-                        .texture.texture = engine->pingpongTexture[1].get()});
+              bool multisampling = r_samples.getInt();
               p->setParameter(
-                  r_samples.getInt() ? "texture2ms" : "texture2", DtSampler,
+                  multisampling ? "texture1ms" : "texture1", DtSampler,
                   BaseProgram::Parameter{
-                      .texture.slot = 1,
+                      .texture.slot = multisampling ? 5 : 1,
+                      .texture.texture = r_bloom.getBool()
+                                             ? engine->pingpongTexture[1].get()
+                                             : NULL});
+              p->setParameter(
+                  !multisampling ? "texture1ms" : "texture1", DtSampler,
+                  BaseProgram::Parameter{.texture.slot = !multisampling ? 5 : 1,
+                                         .texture.texture = NULL});
+              p->setParameter(
+                  multisampling ? "texture2ms" : "texture2", DtSampler,
+                  BaseProgram::Parameter{
+                      .texture.slot = multisampling ? 6 : 2,
                       .texture.texture = engine->guiViewport->get()});
+              p->setParameter(
+                  !multisampling ? "texture2ms" : "texture2", DtSampler,
+                  BaseProgram::Parameter{.texture.slot = !multisampling ? 6 : 2,
+                                         .texture.texture = NULL});
               p->setParameter(
                   "bloom", DtInt,
                   BaseProgram::Parameter{.integer = r_bloom.getBool()});
@@ -383,12 +393,11 @@ Engine::Engine(World* world, void* hwnd) {
   clearColor = glm::vec3(0.3, 0.3, 0.3);
 
   ViewportGfxSettings settings;
-  settings.resolution = glm::ivec2(1, 1);
+  settings.resolution = context->getBufferSize();
   settings.msaaSamples = fullscreenSamples;
   settings.numColorBuffers = 2;  // color, bloom
   viewport.reset(new Viewport(this, settings));
 
-  settings.resolution = glm::ivec2(1, 1);
   settings.msaaSamples = fullscreenSamples;
   settings.numColorBuffers = 1;
   guiViewport.reset(new Viewport(this, settings));
@@ -419,11 +428,18 @@ void Engine::renderFullscreenQuad(
   if (material == 0) material = fullscreenMaterial.get();
   BaseProgram* fullscreenProgram = material->prepareDevice(device.get(), 0);
   if (fullscreenProgram) {
-    if (texture)
+    if (texture) {
       fullscreenProgram->setParameter(
           texture->isMultisampled() ? "texture0ms" : "texture0", DtSampler,
-          BaseProgram::Parameter{.texture.slot = 0,
-                                 .texture.texture = texture});
+          BaseProgram::Parameter{
+              .texture.slot = texture->isMultisampled() ? 4 : 0,
+              .texture.texture = texture});
+      fullscreenProgram->setParameter(
+          !texture->isMultisampled() ? "texture0ms" : "texture0", DtSampler,
+          BaseProgram::Parameter{
+              .texture.slot = !texture->isMultisampled() ? 4 : 0,
+              .texture.texture = NULL});
+    }
     setParameters(fullscreenProgram);
     fullscreenProgram->bind();
   }

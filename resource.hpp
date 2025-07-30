@@ -55,7 +55,7 @@ class BaseResource {
   bool getDataReady() { return isDataReady; }
   void setDataReady() { isDataReady = true; }
   bool getNeedsData() { return needsData; }
-  void setNeedsData() { needsData = true; }
+  void setNeedsData(bool v = true) { needsData = v; }
 
   void loadData();
 
@@ -73,6 +73,8 @@ class ResourceManager {
   resource::Texture* missingTexture;
   gfx::Viewport* previewViewport;
 
+  void startTaskForResource(BaseResource* br);
+
  public:
   ResourceManager();
   resource::Texture* getMissingTexture() { return missingTexture; };
@@ -84,7 +86,6 @@ class ResourceManager {
       return NULL;
   }
 
-  BaseResource* load(BaseResource::Type type, const char* resourceName);
   template <typename T>
   T* load(const char* resourceName) {
     if (BaseResource* rsc = getResource(resourceName)) {
@@ -95,13 +96,16 @@ class ResourceManager {
       }
     }
 
-    if (auto io =
-            common::FileSystem::singleton()->getFileIO(resourceName, "r")) {
-      T* rsc = new T(this, resourceName);
-      resources[resourceName].reset(rsc);
-      return rsc;
-    } else
-      return NULL;
+    T* rsc = new T(this, resourceName);
+    resources[resourceName].reset(rsc);
+    startTaskForResource(rsc);
+    return rsc;
+  }
+
+  bool getResourceAvailable(const char* resourceName) {
+    return (common::FileSystem::singleton()
+                ->getFileIO(resourceName, "r")
+                .has_value());
   }
 
   void tick();

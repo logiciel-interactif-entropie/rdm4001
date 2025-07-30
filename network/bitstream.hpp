@@ -90,6 +90,7 @@ class BitStream {
 
   ENetPacket* createPacket(enet_uint32 flags);
   std::vector<unsigned char> getDataVec();
+  std::vector<unsigned char> rest();
 
   Context getContext() { return ctxt; }
   void setContext(Context ctxt) { this->ctxt = ctxt; }

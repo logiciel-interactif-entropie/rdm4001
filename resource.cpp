@@ -12,6 +12,7 @@
 #include <sys/types.h>
 
 #include "filesystem.hpp"
+#include "game.hpp"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
 #include "gfx/camera.hpp"
@@ -21,6 +22,7 @@
 #include "gfx/viewport.hpp"
 #include "logging.hpp"
 #include "settings.hpp"
+#include "worker.hpp"
 namespace rdm {
 ResourceManager::ResourceManager() {
   missingTexture = load<resource::Texture>(RESOURCE_MISSING_TEXTURE);
@@ -40,41 +42,23 @@ void BaseResource::loadData() {
   needsData = false;
 }
 
-static CVar rsc_load_quota("rsc_load_quota", "100", CVARF_SAVE | CVARF_GLOBAL);
+static CVar rsc_load_quota("rsc_load_quota", "5", CVARF_SAVE | CVARF_GLOBAL);
+
+void ResourceManager::startTaskForResource(BaseResource* br) {
+  br->setNeedsData(false);
+  WorkerManager::singleton()->run([br] { br->loadData(); });
+}
 
 void ResourceManager::tick() {
   int quota_amt = 0;
   for (auto& [rscId, rsc] : resources) {
     if (rsc->getNeedsData()) {
-      rsc->loadData();
+      startTaskForResource(rsc.get());
       quota_amt++;
 
       if (quota_amt > rsc_load_quota.getInt()) break;
     }
   }
-}
-
-BaseResource* ResourceManager::load(BaseResource::Type type,
-                                    const char* resourceName) {
-  if (BaseResource* rsc = getResource(resourceName)) return rsc;
-
-  if (auto io = common::FileSystem::singleton()->getFileIO(resourceName, "r")) {
-    BaseResource* rsc;
-    switch (type) {
-      case BaseResource::Texture:
-        rsc = new resource::Texture(this, resourceName);
-        break;
-      case BaseResource::Model:
-        rsc = new resource::Model(this, resourceName);
-        break;
-      default:
-        throw std::runtime_error("");
-    }
-    resources[resourceName].reset(rsc);
-    delete io.value();
-    return rsc;
-  } else
-    return NULL;
 }
 
 static CVar r_upload_quota("r_upload_quota", "100", CVARF_SAVE | CVARF_GLOBAL);

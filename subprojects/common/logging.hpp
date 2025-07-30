@@ -82,6 +82,7 @@ namespace rdm {
 enum LogType {
   LOG_EXTERNAL,
   LOG_DEBUG,
+  LOG_FIXME,
   LOG_INFO,
   LOG_WARN,
   LOG_ERROR,
@@ -135,8 +136,8 @@ class Log {
   };
 
   template <typename... Args>
-  printf(LogType type, const char* f,
-         Args&&... args) -> printf<LogType, const char*, Args...>;
+  printf(LogType type, const char* f, Args&&... args)
+      -> printf<LogType, const char*, Args...>;
   static void print(
       LogType type, const char* f,
       const std::source_location loc = std::source_location::current());

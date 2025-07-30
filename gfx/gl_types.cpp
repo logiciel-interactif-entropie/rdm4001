@@ -338,8 +338,8 @@ void GLProgram::link() {
 void GLProgram::bindParameters() {
   for (auto& [name, pair] : parameters) {
     GLuint object;
-    if (locations.find(name) != locations.end()) {
-      object = locations[name];
+    if (hasBinding(name)) {
+      object = getBinding(name);
     } else {
       switch (pair.first.type) {
         case DtBuffer:
@@ -354,9 +354,20 @@ void GLProgram::bindParameters() {
           object = glGetUniformLocation(program, name.c_str());
           break;
       }
-      locations[name] = object;
+      if (object == -1) {
+        Log::printf(
+            LOG_ERROR,
+            "Binding not defined %s, We couldn't find anything in its place",
+            name.c_str());
+      } else {
+        Log::printf(LOG_FIXME,
+                    "Binding not defined %s, some api's wont allow for this "
+                    "behaviour. We found gl location %i in its place",
+                    name.c_str(), object);
+      }
+      addBinding(name, object);
     }
-
+    if (object == -1) continue;
     if (!pair.first.dirty) continue;
     switch (pair.first.type) {
       case DtInt:
@@ -390,6 +401,9 @@ void GLProgram::bindParameters() {
         if (pair.second.texture.texture) {
           glActiveTexture(GL_TEXTURE0 + pair.second.texture.slot);
           pair.second.texture.texture->bind();
+          glUniform1i(object, pair.second.texture.slot);
+        } else {
+          glActiveTexture(GL_TEXTURE0 + pair.second.texture.slot);
           glUniform1i(object, pair.second.texture.slot);
         }
         break;

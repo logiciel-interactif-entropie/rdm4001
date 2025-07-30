@@ -99,4 +99,11 @@ std::vector<unsigned char> BitStream::getDataVec() {
   memcpy(data.data(), this->data, data.size());
   return data;
 }
+
+std::vector<unsigned char> BitStream::rest() {
+  std::vector<unsigned char> data;
+  data.resize(size - c);
+  memcpy(data.data(), this->data + c, size - c);
+  return data;
+}
 }  // namespace rdm::network

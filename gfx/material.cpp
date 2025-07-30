@@ -12,6 +12,7 @@
 #include "filesystem.hpp"
 #include "json.hpp"
 #include "logging.hpp"
+#include "settings.hpp"
 using json = nlohmann::json;
 
 namespace rdm::gfx {
@@ -187,6 +188,11 @@ MaterialBinaryFile::MaterialBinaryFile(std::string path) {
   }
 }
 
+#ifndef NDEBUG
+static CVar material_usebinary("material_usebinary", "1",
+                               CVARF_SAVE | CVARF_GLOBAL);
+#endif
+
 std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
     const char* materialName) {
   auto it = cache.find(materialName);
@@ -204,14 +210,13 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
         }
         MaterialBinaryFile* mbf = NULL;
 
-        if (!data["Binary"].is_null()) {
+        if (!data["Binary"].is_null() && material_usebinary.getBool()) {
           if (binaries.find(materialData) == binaries.end()) {
             binaries[materialData].reset(
                 new MaterialBinaryFile(data["Binary"]));
           }
           mbf = binaries[materialData].get();
         }
-
         json materialRequirements = data["Materials"][materialName];
         if (!materialRequirements.is_null()) {
           if (materialRequirements["PostProcess"].is_boolean()) {
@@ -230,6 +235,7 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
                           techniqueId);
               continue;
             }
+            std::shared_ptr<Technique> technique = NULL;
             if (mbf) {
               std::optional<MaterialBinaryFile::Entry> vsEntry =
                   mbf->getEntry(program["VSName"]);
@@ -256,17 +262,28 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
                           program["GSName"], preferred};
                 }
               }
-
-              material->addTechnique(
-                  Technique::create(device, vsSf, fsSf, gsSf));
+              technique = Technique::create(device, vsSf, fsSf, gsSf);
+              material->addTechnique(technique);
             } else {
+              Log::printf(LOG_DEBUG, "Loading material %s without binary",
+                          materialName);
+
               std::string vsName = program["VSName"];
               std::string fsName = program["FSName"];
               std::string gsName = "";
               if (program.find("GSName") != program.end())
                 gsName = program["GSName"];
-              material->addTechnique(
-                  Technique::create(device, vsName, fsName, gsName));
+              technique = Technique::create(device, vsName, fsName, gsName);
+              material->addTechnique(technique);
+            }
+
+            if (!program["Bindings"].is_null()) {
+              for (auto& [key, value] : program["Bindings"].items()) {
+                technique->getProgram()->addBinding(key, value);
+              }
+            } else {
+              Log::printf(LOG_WARN, "Program %s has no binding list",
+                          programName.c_str());
             }
           } catch (std::runtime_error& e) {
             Log::printf(

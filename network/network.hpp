@@ -8,20 +8,14 @@
 #include <memory>
 #include <string>
 
+#include "authentication.hpp"
+#include "bitstream.hpp"
 #include "crc_hash.hpp"
 #include "defs.hpp"
 #include "entity.hpp"
+#include "network_defs.hpp"
 #include "player.hpp"
 #include "signal.hpp"
-
-#define NETWORK_STREAM_META 0
-#define NETWORK_STREAM_ENTITY 1
-#define NETWORK_STREAM_EVENT 1
-#define NETWORK_STREAM_MAX 4
-
-#define NETWORK_DISCONNECT_FORCED 0
-#define NETWORK_DISCONNECT_USER 1
-#define NETWORK_DISCONNECT_TIMEOUT 2
 
 namespace rdm {
 class World;
@@ -29,38 +23,6 @@ class Game;
 }  // namespace rdm
 
 namespace rdm::network {
-typedef uint16_t CustomEventID;
-typedef std::vector<std::pair<CustomEventID, BitStream*>> CustomEventList;
-
-struct Peer {
-  enum Type {
-    ConnectedPlayer,
-    Machine,
-    Unconnected,
-    Undifferentiated,
-  };
-
-  ENetPeer* peer;
-  ENetAddress address;
-  int peerId;
-  Player* playerEntity;
-  Type type;
-  bool noob;
-
-  int roundTripTime;
-  int packetLoss;
-
-  CustomEventList queuedEvents;
-  std::vector<EntityId> pendingNewIds;
-  std::vector<EntityId> pendingDelIds;
-  std::map<std::string, std::string> localCvarValues;
-
-  Peer();
-};
-
-typedef std::function<Entity*(NetworkManager*, EntityId)>
-    EntityConstructorFunction;
-
 class NetworkManager {
   friend class NetworkJob;
   friend class NetworkGraphGui;
@@ -99,11 +61,18 @@ class NetworkManager {
   std::mutex crazyThingsMutex;
   ClosureId cvarChangingUpdate;
 
+  std::unique_ptr<IAuthenticationProvider> authenticationProvider;
+
  public:
   typedef Signal<BitStream&> CustomEventSignal;
 
   NetworkManager(World* world);
   ~NetworkManager();
+
+  void setAuthenticationProvider(IAuthenticationProvider* authProvider);
+  IAuthenticationProvider* getAuthenticationProvider() {
+    return authenticationProvider.get();
+  }
 
   void setGame(Game* game) { this->game = game; };
   Game* getGame() { return game; }
@@ -196,6 +165,10 @@ class NetworkManager {
 
   static void initialize();
   static void deinitialize();
+
+  void sendPacket(Peer* peer, BitStream& stream,
+                  int streamId = NETWORK_STREAM_META,
+                  int flags = ENET_PACKET_FLAG_RELIABLE);
 
  private:
   std::mutex packetHistoryMutex;

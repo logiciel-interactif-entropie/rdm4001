@@ -67,12 +67,17 @@
 	}
     },
     "Programs": {
-	"Sprite": {"VSName": "engine/materials/sprite.vs", "FSName": "engine/materials/sprite.fs"},
 	"GuiPanel": {"VSName": "engine/materials/gui/panel.vs.glsl", "FSName": "engine/materials/gui/panel.fs.glsl"},
 	"GuiText": {"VSName": "engine/materials/gui/panel.vs.glsl", "FSName": "engine/materials/gui/text.fs.glsl"},
 	"GuiImage": {"VSName": "engine/materials/gui/panel.vs.glsl", "FSName": "engine/materials/gui/image.fs.glsl"},
-	"Voxel": {"VSName": "engine/materials/voxel.vs", "FSName": "engine/materials/voxel.fs"},
-	"PostProcess1": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/post.fs.glsl"},
+	"PostProcess1": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/post.fs.glsl", "Bindings": {
+	    "texture0ms": 7,
+	    "texture0": 8,
+	    "texture1ms": 9,
+	    "texture1": 10,
+	    "texture2ms": 11,
+	    "texture2": 12
+	}},
 	"RayMarch": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/ray_march.fs.glsl"},
 	"HeightmapTesselated": {"VSName": "engine/materials/heightmap.vs.glsl", "FSName": "engine/materials/heightmap.fs.glsl", "GSName": "engine/materials/heightmap.gs.glsl"},
 	"Mesh": {"VSName": "engine/materials/mesh.vs.glsl", "FSName": "engine/materials/mesh.fs.glsl"},

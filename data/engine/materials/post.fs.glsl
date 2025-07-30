@@ -1,24 +1,26 @@
 #version 330 core
+#extension GL_ARB_explicit_attrib_location : require
+#extension GL_ARB_explicit_uniform_location : require
 
 in vec2 f_uv;
 out vec4 o_color;
 
-uniform sampler2DMS texture0ms;
-uniform sampler2D texture0;
-uniform sampler2DMS texture1ms;
-uniform sampler2D texture1;
-uniform sampler2DMS texture2ms;
-uniform sampler2D texture2;
+layout(location = 7) uniform sampler2DMS texture0ms;
+layout(location = 8) uniform sampler2D texture0;
+layout(location = 9) uniform sampler2DMS texture1ms;
+layout(location = 10) uniform sampler2D texture1;
+layout(location = 11) uniform sampler2DMS texture2ms;
+layout(location = 12) uniform sampler2D texture2;
 
-uniform float exposure = 0.1;
-uniform float time;
+layout(location = 13) uniform float exposure = 0.1;
+layout(location = 14) uniform float time;
 
-uniform int banding_effect = 0xff3;
-uniform int samples = 0;
-uniform vec2 target_res;
-uniform float forced_aspect;
-uniform vec2 window_res;
-uniform bool bloom;
+layout(location = 1) uniform int banding_effect = 0xff3;
+layout(location = 2) uniform int samples = 0;
+layout(location = 3) uniform vec2 target_res;
+layout(location = 4) uniform float forced_aspect;
+layout(location = 5) uniform vec2 window_res;
+layout(location = 6) uniform bool bloom;
 
 vec3 bandize(vec3 col) {
   vec3 out_color_raw = col;
@@ -59,7 +61,7 @@ void main() {
        texelFetch(texture0, uv, 2) + texelFetch(texture0, uv, 3)) /
       4;*/
 
-  vec3 base_color;
+  vec3 base_color = vec3(1.0, 0.0, 1.0);
   vec4 gui;
   vec3 bloom_color = vec3(0.0);
   if (samples != 0) {

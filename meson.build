@@ -1,4 +1,4 @@
-project('rdm4001', 'c', 'cpp', default_options: ['cpp_std=c++20'], meson_version: '>=1.2.0')
+project('rdm4001', 'c', 'cpp', default_options: ['cpp_std=c++20', 'default_library=static'], meson_version: '>=1.2.0')
 
 if get_option('vcpkg').enabled()
   vcpkg = find_program('vcpkg', required : true)
@@ -23,6 +23,7 @@ mpv = dependency('mpv', required: get_option('mpv'))
 
 common_proj = subproject('common')
 common_dep = common_proj.get_variable('libcommon_dep')
+
 obz_proj = subproject('obz', required: get_option('obz'))
 obz_options = []
 if not obz_proj.found()
@@ -155,6 +156,8 @@ gamelib = static_library('game', [
   'putil/fpscontroller.cpp',
   'putil/fpscontroller.hpp',
 
+  'network/authentication.cpp',
+  'network/authentication.hpp',
   'network/bitstream.cpp',
   'network/bitstream.hpp',
   'network/entity.cpp',

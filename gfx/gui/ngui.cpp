@@ -352,7 +352,7 @@ class FPSDisplay : public NGui {
                              .getAvgDeltaTime());
     renderer->text(glm::ivec2(-1, baseline), font, -1,
                    "© logiciel interactif entropie 2024-2026\nRDM4001 is "
-                   "licensed under the GNU GPLv3");
+                   "licensed under the GNU AGPLv3");
 
     if (cl_showfps.getInt() == 2) {
       frameTimes.push_back(getEngine()->getRenderJob()->getStats().deltaTime);

@@ -76,6 +76,10 @@ void HttpManager::handleWebRequest(CURL* handle, std::string url, Request rq,
                 errorMsg.c_str());
     rsp.statusCode = -1;  // request couldn't be made
     rsp.response = std::vector<char>(errorMsg.begin(), errorMsg.end());
+#ifndef NDEBUG
+    Log::printf(LOG_DEBUG, "Failed webrequest %s '%s'", url.c_str(),
+                errorMsg.c_str());
+#endif
   } else {
     rsp.response = rd.data;
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &rsp.statusCode);
@@ -97,6 +101,7 @@ void HttpManager::handleWebRequest(CURL* handle, std::string url, Request rq,
   }
 
   response->set_value(rsp);
+  if (rq.requestFinished) rq.requestFinished(rsp);
 
   delete response;
   // curl_multi_remove_handle(curl_multi, handle);
