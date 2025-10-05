@@ -1,14 +1,15 @@
 #pragma once
 
-#include <SDL2/SDL_ttf.h>
-
 #include <glm/ext/vector_int2.hpp>
 #include <map>
 #include <memory>
 #include <string>
+
+#include "SDL3_ttf/SDL_ttf.h"
 namespace rdm::gfx::gui {
 struct Font {
   TTF_Font* font;
+  void* fontDataRef;
 
   ~Font();
 

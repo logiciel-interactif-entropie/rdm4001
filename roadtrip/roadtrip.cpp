@@ -9,11 +9,11 @@ void RoadTrip::initialize() {
   rdm::WorldConstructorSettings& settings = getWorldConstructorSettings();
   settings.network = true;
 
-  if (rdm::Settings::singleton()->getHintDs()) {
-    startServer();
-  } else {
-    startClient();
-  }
+  // if (rdm::Settings::singleton()->getHintDs()) {
+  startServer();
+  //} else {
+  //  startClient();
+  //}
 }
 
 void RoadTrip::addEntityConstructors(rdm::network::NetworkManager* manager) {

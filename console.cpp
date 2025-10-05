@@ -3,7 +3,7 @@
 #include <chrono>
 #include <map>
 
-#include "SDL_keycode.h"
+#include "SDL3/SDL_keycode.h"
 #include "game.hpp"
 #include "gfx/base_types.hpp"
 #include "gfx/engine.hpp"
@@ -34,7 +34,7 @@ ConsoleData* getCData() {
   return ds;
 }
 
-#define CONSOLE_FONT "engine/gui/msgothic.ttf"
+#define CONSOLE_FONT "gui_pak://msgothic.ttf"
 #define CONSOLE_SIZE 18
 class ConsoleWindow : public gfx::gui::NGuiWindow {
   gfx::gui::TextLabel* consoleLog;
@@ -110,7 +110,7 @@ Console::Console(Game* game) {
     game->getWorld()->stepped.listen([this] { tick(); });
 
     bgTexture = game->getResourceManager()->load<resource::Texture>(
-        "engine/gui/console_bg.png");
+        "gui_pak://console_bg.png");
     textTexture = game->getGfxEngine()->getDevice()->createTexture();
 #ifdef NDEBUG
     visible = false;
@@ -123,10 +123,10 @@ Console::Console(Game* game) {
 
 void Console::tick() {
   static bool debounce = false;
-  if (Input::singleton()->isKeyDown(SDLK_BACKQUOTE) && !debounce) {
+  if (Input::singleton()->isKeyDown(SDLK_GRAVE) && !debounce) {
     debounce = true;
     game->getGfxEngine()->getGuiManager()->getGui<ConsoleWindow>()->open();
-  } else if (!Input::singleton()->isKeyDown(SDLK_BACKQUOTE)) {
+  } else if (!Input::singleton()->isKeyDown(SDLK_GRAVE)) {
     debounce = false;
   }
 

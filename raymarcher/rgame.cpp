@@ -9,7 +9,6 @@
 #include "LinearMath/btVector3.h"
 #include "gfx/base_device.hpp"
 #include "gfx/base_types.hpp"
-#include "gfx/gui/gui.hpp"
 #include "input.hpp"
 #include "physics.hpp"
 #include "world.hpp"
@@ -82,8 +81,8 @@ struct RGamePrivate {
 };
 
 RGame::RGame() {
-  Input::singleton()->newAxis("ForwardBackward", SDLK_w, SDLK_s);
-  Input::singleton()->newAxis("LeftRight", SDLK_a, SDLK_d);
+  Input::singleton()->newAxis("ForwardBackward", SDLK_W, SDLK_S);
+  Input::singleton()->newAxis("LeftRight", SDLK_A, SDLK_D);
 
   game = new RGamePrivate();
 }
@@ -126,7 +125,7 @@ void RGame::initialize() {
         (vm * glm::vec3(lrA->value, 0.0, fbA->value) * speed * (1.f / 60.f)));
     cam.setTarget(cam.getPosition() + vm * forward);
 
-    if (Input::singleton()->isKeyDown(SDLK_q)) {
+    if (Input::singleton()->isKeyDown(SDLK_Q)) {
       glm::vec3 pos = glm::vec3(0.0);
       {
         std::scoped_lock l(world->getPhysicsWorld()->mutex);

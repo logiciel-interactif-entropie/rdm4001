@@ -370,9 +370,12 @@ void NetworkManager::service() {
 
                   SignedMessage msg = stream.readSignedMessage();
                   if (getGame()->getSecurityManager()->verify(msg)) {
+                    std::string hostIpStr =
+                        std::format("{:#x}.{:#x}", localPeer.address.host,
+                                    localPeer.address.port);
                     std::string path = std::format(
-                        "{}hosts/{:#x}.{:#x}.sig", Fun::getLocalDataDirectory(),
-                        localPeer.address.host, localPeer.address.port);
+                        "{}hosts/{:#x}.sig", Fun::getLocalDataDirectory(),
+                        std::hash<std::string>{}(hostIpStr));
                     FILE* sig = fopen(path.c_str(), "r");
                     if (sig) {
                       char keybuf[65535];
@@ -442,13 +445,16 @@ void NetworkManager::service() {
                 break;
               case AuthenticatePacket:
                 if (backend) {
-                  SignedMessage identity = stream.readSignedMessage();
-
                   std::string username = stream.readString();
                   std::string password = stream.readString();
                   std::string userPassword = stream.readString();
 
-                  if (!userPassword.empty())
+                  SignedMessage identity = stream.readSignedMessage();
+
+                  Log::printf(LOG_DEBUG, "%s sent authenticate packet",
+                              username.c_str());
+
+                  if (!this->userPassword.empty())
                     if (userPassword != this->userPassword) {
                       Log::printf(LOG_INFO, "%s failed userPassword",
                                   username.c_str());
@@ -1299,7 +1305,6 @@ void NetworkManager::sendCustomEvent(int peerId, CustomEventID id,
 
 void NetworkManager::sendPacket(Peer* peer, BitStream& stream, int streamId,
                                 int flags) {
-  std::scoped_lock l(crazyThingsMutex);
   enet_peer_send(peer->peer, streamId, stream.createPacket(flags));
 }
 

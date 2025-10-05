@@ -23,6 +23,7 @@ out vec4 v_fpos;
 out vec2 v_fuv;
 out vec3 v_fraydir;
 out vec4 v_ftotal_pos;
+out vec3 v_fmeshpos;
 
 void main() {
   vec4 total_pos = vec4(0.0);
@@ -42,6 +43,7 @@ void main() {
   if (null_ids == 4) total_pos = vec4(v_position, 1.0);
 
   v_ftotal_pos = total_pos;
+  v_fmeshpos = vec3(total_pos.xyz);
   // total_pos = vec4(v_position, 1.0f);
 
   v_fvnorm = mat3(viewMatrix * model) * v_normal;

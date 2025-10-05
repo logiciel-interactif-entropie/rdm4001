@@ -42,7 +42,6 @@ void Log::addLogMessage(LogMessage m) {
       default:
       case LOG_EXTERNAL:
       case LOG_DEBUG:
-        clr = HBLK;
         lvl = "DEBUG";
         break;
       case LOG_FIXME:
@@ -50,7 +49,6 @@ void Log::addLogMessage(LogMessage m) {
         lvl = "FIXME";
         break;
       case LOG_INFO:
-        clr = WHT;
         lvl = "INFO";
         break;
       case LOG_WARN:
@@ -68,14 +66,14 @@ void Log::addLogMessage(LogMessage m) {
     }
 #ifndef _WIN32
 #ifndef NDEBUG
-    ::printf("%s[%s:%i] %s: %s" COLOR_RESET "\n", clr, m.loc.file_name(),
+    ::printf("%s%s:%i %s: %s" COLOR_RESET "\n", clr, m.loc.file_name(),
              m.loc.line(), lvl, m.message.c_str());
 #else
     ::printf("%s%s" COLOR_RESET "\n", clr, m.message.c_str());
 #endif
 #else
 #ifndef NDEBUG
-    ::printf("[%s:%i] %s: %s\n", m.loc.file_name(), m.loc.line(), lvl,
+    ::printf("%s:%i %s: %s\n", m.loc.file_name(), m.loc.line(), lvl,
              m.message.c_str());
 #else
     ::printf("%s\n", clr, m.message.c_str());

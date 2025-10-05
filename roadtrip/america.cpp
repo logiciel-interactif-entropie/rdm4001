@@ -40,12 +40,12 @@ America::America(rdm::network::NetworkManager* manager,
       program->setParameter(
           "texture0", rdm::gfx::DtSampler,
           rdm::gfx::BaseProgram::Parameter{
-              .texture.slot = 0,
-              .texture.texture = getGfxEngine()
-                                     ->getTextureCache()
-                                     ->getOrLoad2d("dat6/map.png")
-                                     .value()
-                                     .second});
+              .texture = {.slot = 0,
+                          .texture = getGfxEngine()
+                                         ->getTextureCache()
+                                         ->getOrLoad2d("dat6/map.png")
+                                         .value()
+                                         .second}});
       program->bind();
       prim->render(getGfxEngine()->getDevice());
     });

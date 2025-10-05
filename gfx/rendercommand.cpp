@@ -68,9 +68,8 @@ void RenderList::render(gfx::Engine* engine) {
       for (int j = 0; j < NR_MAX_TEXTURES; j++) {
         BaseTexture* texture = command.getTexture(j);
         if (texture && oldTextures[j] != texture) {
-          program->setParameter(
-              std::format("texture{}", j), DtSampler,
-              {.texture.slot = j, .texture.texture = texture});
+          program->setParameter(std::format("texture{}", j), DtSampler,
+                                {.texture = {.slot = j, .texture = texture}});
           oldTextures[j] = texture;
           needsRebind = true;
         }

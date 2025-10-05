@@ -1,7 +1,8 @@
 #include "gl_device.hpp"
 
-#include <glad/glad.h>
+#include <glad/gl.h>
 
+#include <cassert>
 #include <format>
 #include <stdexcept>
 
@@ -10,13 +11,12 @@
 #include "gfx/base_types.hpp"
 #include "gl_context.hpp"
 #include "gl_types.hpp"
-#include "imgui/backends/imgui_impl_opengl3.h"
-#include "imgui/imgui.h"
+#include "logging.hpp"
 
 namespace rdm::gfx::gl {
 GLDevice::GLDevice(GLContext* context) : BaseDevice(context) {
   currentFrameBuffer = 0;
-  setUpImgui = false;
+  numFramebufferDepth = 0;
 }
 void GLDevice::readPixels(int x, int y, int w, int h, void* d) {
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, d);
@@ -141,8 +141,17 @@ void GLDevice::draw(BaseBuffer* base, DataType type, DrawType dtype,
 }
 
 void* GLDevice::bindFramebuffer(BaseFrameBuffer* buffer) {
+  if (!buffer) throw std::runtime_error("NULL buffer");
+
+  numFramebufferDepth++;
+  assert(numFramebufferDepth < 100);
+
   dbgPushGroup(
       std::format("framebuffer {}", ((GLFrameBuffer*)buffer)->getId()));
+  /*
+  Log::printf(LOG_DEBUG, "Framebuffer %p (%s) bound", buffer,
+              buffer->getTag().c_str());
+  */
 
   void* oldFb = (void*)currentFrameBuffer;
   glBindFramebuffer(GL_FRAMEBUFFER, ((GLFrameBuffer*)buffer)->getId());
@@ -152,6 +161,15 @@ void* GLDevice::bindFramebuffer(BaseFrameBuffer* buffer) {
 
 void GLDevice::unbindFramebuffer(void* p) {
   GLFrameBuffer* oldFb = (GLFrameBuffer*)p;
+
+  /*  Log::printf(LOG_DEBUG,
+              oldFb ? "Framebuffer %p (%s) bound, framebuffer %p (%s) unbound"
+                    : "Returned to backbuffer fb",
+              oldFb, oldFb ? oldFb->getTag().c_str() : NULL, currentFrameBuffer,
+              currentFrameBuffer->getTag().c_str());
+  */
+  numFramebufferDepth--;
+
   glBindFramebuffer(GL_FRAMEBUFFER, oldFb ? oldFb->getId() : 0);
   currentFrameBuffer = oldFb;
 
@@ -202,26 +220,16 @@ void GLDevice::targetAttachments(BaseFrameBuffer::AttachmentPoint* attachments,
   glDrawBuffers(count, _attach.data());
 }
 
-void GLDevice::startImGui() {
-  if (!setUpImgui) {
-    ImGui_ImplOpenGL3_Init();
-    setUpImgui = true;
-  }
-
-  ImGui_ImplOpenGL3_NewFrame();
-  ImGui::NewFrame();
-}
-
-void GLDevice::stopImGui() {
-  ImGui::Render();
-  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-  ImGui::EndFrame();
-}
-
 void GLDevice::dbgPushGroup(std::string message) {
+#ifdef RDM_DBG_GL_DEBUG_GROUPS
   glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, message.size(),
                    message.c_str());
+#endif
 }
 
-void GLDevice::dbgPopGroup() { glPopDebugGroup(); }
+void GLDevice::dbgPopGroup() {
+#ifdef RDM_DBG_GL_DEBUG_GROUPS
+  glPopDebugGroup();
+#endif
+}
 }  // namespace rdm::gfx::gl

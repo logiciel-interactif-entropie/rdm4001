@@ -1,3 +1,9 @@
+#include <unicode/locid.h>
+#include <unicode/unistr.h>
+#include <unicode/ustream.h>
+
+#include <filesystem>
+
 #include "gfx/base_types.hpp"
 #include "gfx/engine.hpp"
 #include "gfx/stb_image.h"
@@ -5,7 +11,26 @@
 
 namespace rdm::resource {
 Texture::Texture(ResourceManager* manager, std::string name)
-    : BaseGfxResource(manager, name) {}
+    : BaseGfxResource(manager, name) {
+  dirtyTextureSettings = true;
+  textureSettings.minFiltering = gfx::BaseTexture::Linear;
+  textureSettings.maxFiltering = gfx::BaseTexture::Linear;
+  handler = Unloaded;
+  textureData = NULL;
+}
+
+Texture::~Texture() {
+  switch (Unloaded) {
+    case Ktx2:
+
+      break;
+    case Stbi:
+      stbi_image_free((stbi_uc*)textureData);
+      break;
+    default:
+      break;
+  }
+}
 
 void Texture::gfxDelete() {
   std::scoped_lock l(m);
@@ -52,23 +77,41 @@ gfx::TextureCache::Info Texture::getInfo() {
 
 void Texture::onLoadData(common::OptionalData data) {
   std::scoped_lock l(m);
+  /*icu::UnicodeString ucString(
+      std::filesystem::path(getName()).extension().c_str(), "UTF-8");
+  std::string extension;
+  ucString.toUTF8String(extension);*/
+  std::string extension = "";
 
-  stbi_set_flip_vertically_on_load(true);
-  stbi_uc* uc = stbi_load_from_memory(data->data(), data->size(), &width,
-                                      &height, &channels, 0);
-  textureData = (void*)uc;
+  if (extension == "ktx2") {
+    handler = Ktx2;
+  } else {
+    handler = Stbi;
+
+    stbi_set_flip_vertically_on_load(true);
+    stbi_uc* uc = stbi_load_from_memory(data->data(), data->size(), &width,
+                                        &height, &channels, 0);
+    if (!uc) {
+      Log::printf(LOG_ERROR, "texture %s failed, stbi_failure_reason = %s",
+                  getName().c_str(), stbi_failure_reason());
+      throw std::runtime_error("Texture load failed");
+    }
+
+    textureData = (void*)uc;
+  }
 }
 
 gfx::BaseTexture* Texture::getTexture() {
   std::scoped_lock l(m);
 
   if (texture) {
+    if (dirtyTextureSettings)
+      texture->setFiltering(textureSettings.minFiltering,
+                            textureSettings.maxFiltering);
+
     m.unlock();
     return texture.get();
   } else {
-    if (!getDataReady()) {
-      setNeedsData();
-    }
     if (this == getResourceManager()->getMissingTexture())
       return NULL;
     else

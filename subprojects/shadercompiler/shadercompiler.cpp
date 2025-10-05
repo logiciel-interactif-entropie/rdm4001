@@ -20,7 +20,6 @@ class ShadercIncluder : public shaderc::CompileOptions::IncluderInterface {
 
  public:
   ShadercIncluder(std::vector<std::string> includePaths) {
-    fprintf(stderr, "ShadercIncluder %i\n", includePaths.size());
     this->includePaths = includePaths;
   }
 
@@ -111,6 +110,12 @@ int main(int argc, char** argv) {
   json data = json::parse(jsonData.data());
 
   for (auto& programs : data["Programs"].items()) {
+    std::vector<std::string> shaderParams;
+    if (!programs.value()["Parameters"].is_null())
+      for (auto param : programs.value()["Parameters"].items()) {
+        shaderParams.push_back(param.value());
+      }
+
     for (auto& shaders : programs.value().items()) {
       tried++;
 
@@ -129,6 +134,22 @@ int main(int argc, char** argv) {
       std::string shaderPath = shaders.value();
       if (compiledShaders.find(shaderPath) != compiledShaders.end()) continue;
 
+      shaderc::Compiler compiler;
+      shaderc::CompileOptions options;
+      options.SetSourceLanguage(shaderc_source_language_glsl);
+      options.SetOptimizationLevel(shaderc_optimization_level_performance);
+      options.SetTargetEnvironment(shaderc_target_env_opengl, 3300);
+      options.SetAutoMapLocations(true);
+      options.SetAutoBindUniforms(true);
+
+      options.SetIncluder(
+          std::unique_ptr<shaderc::CompileOptions::IncluderInterface>(
+              new ShadercIncluder(includePaths)));
+
+      for (auto param : shaderParams) {
+        options.AddMacroDefinition(param);
+      }
+
       CompiledShader shader;
       std::string shaderData;
       std::ifstream stream(dataDir + "/" + shaderPath);
@@ -140,17 +161,6 @@ int main(int argc, char** argv) {
       std::ostringstream ss;
       ss << stream.rdbuf();
       shaderData = ss.str();
-
-      shaderc::Compiler compiler;
-      shaderc::CompileOptions options;
-      options.SetSourceLanguage(shaderc_source_language_glsl);
-      options.SetOptimizationLevel(shaderc_optimization_level_performance);
-      options.SetTargetEnvironment(shaderc_target_env_opengl, 3300);
-      options.SetAutoMapLocations(true);
-      options.SetAutoBindUniforms(true);
-      options.SetIncluder(
-          std::unique_ptr<shaderc::CompileOptions::IncluderInterface>(
-              new ShadercIncluder(includePaths)));
 
       shaderc::PreprocessedSourceCompilationResult presult =
           compiler.PreprocessGlsl(shaderData, kind, shaderPath.c_str(),
@@ -180,9 +190,9 @@ int main(int argc, char** argv) {
   }
 
   printf("%i shaders compiled, %i failed, %i tried\n", compiled, failed, tried);
-  for (auto& [nam, _] : compiledShaders) {
+  /* for (auto& [nam, _] : compiledShaders) {
     printf("%s\n", nam.c_str());
-  }
+    }*/
 
   FILE* output =
       fopen((dataDir + "/" + (std::string)data["Binary"]).c_str(), "wb");

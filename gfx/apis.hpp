@@ -11,10 +11,7 @@ class ApiFactory {
  public:
   struct ApiReg {
     std::function<BaseDevice*(BaseContext*)> createDevice;
-    std::function<BaseContext*(void*)> createContext;
-    std::function<std::vector<BaseContext::DisplayMode>()>
-        getSupportedDisplayModes;
-    std::function<int()> prepareSdl;
+    std::function<BaseContext*(AbstractionWindow*)> createContext;
   };
 
   bool valid(const char* nam) { return (regs.find(nam) != regs.end()); }
@@ -47,12 +44,8 @@ class ApiInstantiator {
     reg.createDevice = [](BaseContext* C) {
       return (BaseDevice*)(new Device(dynamic_cast<Context*>(C)));
     };
-    reg.createContext = [](void* hwnd) {
+    reg.createContext = [](AbstractionWindow* hwnd) {
       return (BaseContext*)(new Context(hwnd));
-    };
-    reg.prepareSdl = []() { return Context::prepareSdl(); };
-    reg.getSupportedDisplayModes = []() {
-      return Context::getSupportedDisplayModes();
     };
     ApiFactory::singleton()->registerFunctions(nam, reg);
   }

@@ -117,9 +117,13 @@ class MaterialCache {
   std::list<std::string> materialDatas;
   BaseDevice* device;
 
+  bool preferNoDF;
+
  public:
   MaterialCache(BaseDevice* device);
   void addDataFile(const char* path);
+  void setPreferNoDF(bool df) { preferNoDF = df; }
+  bool getPreferNoDF() { return preferNoDF; }
 
   /**
    * @brief Loads and caches a material, or just returns an already cached

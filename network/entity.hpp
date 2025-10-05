@@ -4,6 +4,7 @@
 #include <string>
 
 #include "bitstream.hpp"
+#include "object.hpp"
 #include "signal.hpp"
 
 namespace rdm {
@@ -67,7 +68,10 @@ class ReplicateProperty {
 };
 
 class NetworkManager;
-class Entity {
+class Entity : public reflection::Object {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(Entity, reflection::Object);
+
   NetworkManager* manager;
   EntityId id;
 

@@ -12,7 +12,7 @@ class IAuthenticationProvider {
   virtual ~IAuthenticationProvider();
 
   virtual void sendPeerInfo(Peer* peer,
-                            BitStream stream) = 0;  // false if not ready yet
+                            BitStream& stream) = 0;  // false if not ready yet
   virtual std::future<bool> verifyPeerInfo(
       Peer* peer,
       BitStream stream) = 0;  // false if denied

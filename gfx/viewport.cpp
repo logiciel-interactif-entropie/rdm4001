@@ -1,22 +1,27 @@
 #include "viewport.hpp"
 
+#include <format>
+
 #include "base_types.hpp"
 #include "engine.hpp"
 #include "lighting.hpp"
+#include "postprocessing.hpp"
 namespace rdm::gfx {
 Viewport::Viewport(gfx::Engine* engine, ViewportGfxSettings settings)
-    : lightingSystem(engine) {
+    : lightingSystem(engine), postProcessing(engine), settings(settings) {
   this->engine = engine;
-  this->settings = settings;
 
   updateBuffers(true);
 
   camera.updateCamera(settings.resolution);
 }
 
+static int a = 0;
+
 void Viewport::updateBuffers(bool firstTime) {
   if (firstTime) {
     framebuffer = engine->getDevice()->createFrameBuffer();
+    framebuffer->setTag(std::format("Viewport {} Main Buffer", a++));
   } else {
     framebuffer->destroyAndCreate();
   }
@@ -62,6 +67,8 @@ void Viewport::updateBuffers(bool firstTime) {
                 framebuffer->getStatus());
     throw std::runtime_error("Failed creating Viewport framebuffer");
   }
+
+  postProcessing.updateResolution(this);
 }
 
 void Viewport::updateSettings(ViewportGfxSettings settings) {
@@ -79,6 +86,7 @@ void Viewport::applyRenderState() {
   engine->getDevice()->targetAttachments(points.data(), points.size());
   engine->getDevice()->viewport(0, 0, settings.resolution.x,
                                 settings.resolution.y);
+  postProcessing.applyRenderState(engine->getDevice());
 }
 
 void* Viewport::bind() {
@@ -101,5 +109,10 @@ glm::vec2 Viewport::project(glm::vec3 _p) {
   if (p.z > 1.f) return glm::vec2(-1);
   if (p.z < -1.f) return glm::vec2(-1);
   return glm::vec2(p.x, p.y);
+}
+
+void Viewport::draw(glm::vec2 resolution) {
+  postProcessing.runEffects(this);
+  postProcessing.draw(this, resolution);
 }
 }  // namespace rdm::gfx

@@ -1,5 +1,7 @@
 #include "filesystem.hpp"
 
+#include <string.h>
+
 #ifdef __linux
 #include <linux/limits.h>
 #else
@@ -46,6 +48,8 @@ FileSystemAPI* FileSystem::getOwningApi(const char* _path) {
     auto api = fsApis.find(uri);
     if (api != fsApis.end()) {
       return api->second.api.get();
+    } else {
+      rdm::Log::printf(rdm::LOG_WARN, "Could not find URI %s", uri.c_str());
     }
   } else {
     std::vector<FSApiInfo*> infos;
@@ -99,6 +103,70 @@ DataFolderAPI::DataFolderAPI(std::string basedir) {
   } else {
     this->basedir = basedir;
   }
+}
+
+char* normalize_path(const char* src, size_t src_len) {
+  char* res;
+  size_t res_len;
+
+  const char* ptr = src;
+  const char* end = &src[src_len];
+  const char* next;
+
+  if (src_len == 0 || src[0] != '/') {
+    // relative path
+
+    char pwd[PATH_MAX];
+    size_t pwd_len;
+
+    if (getcwd(pwd, sizeof(pwd)) == NULL) {
+      return NULL;
+    }
+
+    pwd_len = strlen(pwd);
+    res = (char*)malloc(pwd_len + 1 + src_len + 1);
+    memcpy(res, pwd, pwd_len);
+    res_len = pwd_len;
+  } else {
+    res = (char*)malloc((src_len > 0 ? src_len : 1) + 1);
+    res_len = 0;
+  }
+
+  for (ptr = src; ptr < end; ptr = next + 1) {
+    size_t len;
+    next = (const char*)memchr(ptr, '/', end - ptr);
+    if (next == NULL) {
+      next = end;
+    }
+    len = next - ptr;
+    switch (len) {
+      case 2:
+        if (ptr[0] == '.' && ptr[1] == '.') {
+          const char* slash = (const char*)memrchr(res, '/', res_len);
+          if (slash != NULL) {
+            res_len = slash - res;
+          }
+          continue;
+        }
+        break;
+      case 1:
+        if (ptr[0] == '.') {
+          continue;
+        }
+        break;
+      case 0:
+        continue;
+    }
+    res[res_len++] = '/';
+    memcpy(&res[res_len], ptr, len);
+    res_len += len;
+  }
+
+  if (res_len == 0) {
+    res[res_len++] = '/';
+  }
+  res[res_len] = '\0';
+  return res;
 }
 
 void DataFolderAPI::checkProperDir(const char* path) {
@@ -194,5 +262,11 @@ size_t DataFileIO::read(void* out, size_t size) {
 
 size_t DataFileIO::write(const void* in, size_t size) {
   return fwrite(in, size, 1, file);
+}
+
+std::optional<std::string> DataFileIO::getLine() {
+  char line[65535];
+  if (fgets(line, 65535, file)) return line;
+  return {};
 }
 };  // namespace common

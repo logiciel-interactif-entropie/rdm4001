@@ -209,8 +209,16 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
           continue;
         }
         MaterialBinaryFile* mbf = NULL;
+        bool mbUseBinary = true;
+#ifndef NDEBUG
+        mbUseBinary = material_usebinary.getBool();
+#endif
 
-        if (!data["Binary"].is_null() && material_usebinary.getBool()) {
+        if (!data["Binary"].is_null()
+#ifndef NDEBUG
+            && mbUseBinary
+#endif
+        ) {
           if (binaries.find(materialData) == binaries.end()) {
             binaries[materialData].reset(
                 new MaterialBinaryFile(data["Binary"]));
@@ -306,5 +314,6 @@ std::optional<std::shared_ptr<Material>> MaterialCache::getOrLoad(
       return {};
     }
   }
+  return {};
 }
 }  // namespace rdm::gfx

@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#include <cstdint>
 #include <list>
 #include <world.hpp>
 
@@ -11,11 +10,27 @@
 #include "game.hpp"
 #include "gfx/engine.hpp"
 #include "input.hpp"
+#include "localization.hpp"
 #include "ngui_elements.hpp"
 #include "ngui_window.hpp"
+#include "pak_file.hpp"
 #include "settings.hpp"
 
 namespace rdm::gfx::gui {
+RDM_REFLECTION_BEGIN_DESCRIBED(NGuiManager);
+RDM_REFLECTION_PRECACHE_FUNC(NGuiManager, [](ResourceManager* rmgr) {
+  common::FileSystem::singleton()->addApi(
+      new pak::PakFile("engine/gui/ngui.pak"), "gui_pak");
+  rmgr->load<resource::Texture>("gui_pak://close_button.png");
+  rmgr->load<resource::Texture>("gui_pak://title_bar.png");
+  rmgr->load<resource::Texture>("gui_pak://corner_r.png");
+  rmgr->load<resource::Texture>("gui_pak://corner_l.png");
+  rmgr->load<resource::Texture>("gui_pak://hbar.png");
+  rmgr->load<resource::Texture>("gui_pak://vlbar.png");
+  rmgr->load<resource::Texture>("gui_pak://vrbar.png");
+});
+RDM_REFLECTION_END_DESCRIBED();
+
 NGuiSingleton::NGuiSingleton() {}
 
 static NGuiSingleton* _singleton = NULL;
@@ -323,7 +338,7 @@ class FPSDisplay : public NGui {
 
  public:
   FPSDisplay(NGuiManager* gui, gfx::Engine* engine) : NGui(gui, engine) {
-    font = gui->getFontCache()->get("engine/gui/serif.ttf", 8);
+    font = gui->getFontCache()->get("gui_pak://serif.ttf", 8);
   }
 
   virtual void render(NGuiRenderer* renderer) {
@@ -351,8 +366,9 @@ class FPSDisplay : public NGui {
                              ->getStats()
                              .getAvgDeltaTime());
     renderer->text(glm::ivec2(-1, baseline), font, -1,
-                   "© logiciel interactif entropie 2024-2026\nRDM4001 is "
-                   "licensed under the GNU AGPLv3");
+                   Lc(RDM_COPYRIGHT_STRING,
+                      "© logiciel interactif entropie 2024-2026\nRDM4001 is "
+                      "licensed under the GNU AGPLv3"));
 
     if (cl_showfps.getInt() == 2) {
       frameTimes.push_back(getEngine()->getRenderJob()->getStats().deltaTime);

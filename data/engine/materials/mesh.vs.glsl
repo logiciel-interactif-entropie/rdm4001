@@ -15,8 +15,10 @@ out vec3 v_fvnorm;
 out vec4 v_fpos;
 out vec2 v_fuv;
 out vec3 v_fraydir;
+out vec3 v_fmeshpos;
 
 void main() {
+  v_fmeshpos = v_position;
   v_fvnorm = mat3(viewMatrix * model) * v_normal;
   v_fmpos = vec3(model * vec4(v_position, 1.0));
   mat4 pv = projectionMatrix * viewMatrix;

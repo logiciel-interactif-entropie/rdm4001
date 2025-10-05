@@ -56,7 +56,9 @@ void NGuiHorizontalLayout::layoutElements(NGuiPanel* panel,
   glm::vec2 pos = glm::vec2();
   glm::vec2 posLocal = glm::vec2(getMargin());
   pos = panel->getPosition();
-  pos += getMargin();
+  if (panel->getParent() == NULL) pos.y += panel->getSize().y;
+  pos.x += getMargin();
+  pos.y -= getMargin();
   glm::vec2 max = glm::vec2(0);
   for (auto& child : children) {
     if (!child->getShowa()) continue;
@@ -93,19 +95,19 @@ NGuiWindow::NGuiWindow(NGuiManager* gui, gfx::Engine* engine)
   font = gui->getFontCache()->get(NGUI_UI_FONT);
   titleFont = gui->getFontCache()->get(NGUI_TITLE_FONT);
   closeButton = getResourceManager()->load<resource::Texture>(
-      "engine/gui/close_button.png");
+      "gui_pak://close_button.png");
   titleBar =
-      getResourceManager()->load<resource::Texture>("engine/gui/title_bar.png");
+      getResourceManager()->load<resource::Texture>("gui_pak://title_bar.png");
   cornerRight =
-      getResourceManager()->load<resource::Texture>("engine/gui/corner_r.png");
+      getResourceManager()->load<resource::Texture>("gui_pak://corner_r.png");
   cornerLeft =
-      getResourceManager()->load<resource::Texture>("engine/gui/corner_l.png");
+      getResourceManager()->load<resource::Texture>("gui_pak://corner_l.png");
   horizBar =
-      getResourceManager()->load<resource::Texture>("engine/gui/hbar.png");
+      getResourceManager()->load<resource::Texture>("gui_pak://hbar.png");
   vertiLeftBar =
-      getResourceManager()->load<resource::Texture>("engine/gui/vlbar.png");
+      getResourceManager()->load<resource::Texture>("gui_pak://vlbar.png");
   vertiRightBar =
-      getResourceManager()->load<resource::Texture>("engine/gui/vrbar.png");
+      getResourceManager()->load<resource::Texture>("gui_pak://vrbar.png");
 
   visible = false;
   title = "";

@@ -48,7 +48,10 @@ class NGui {
   virtual void render(NGuiRenderer* renderer) = 0;
 };
 
-class NGuiManager {
+class NGuiManager : public reflection::Object {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(NGuiManager, reflection::Object);
+
   std::map<std::string, NGui*> guis;
   gfx::Engine* engine;
   struct CacheTextMember {

@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "gfx/base_types.hpp"
-#include "glad/glad.h"
+#include "glad/gl.h"
 #include "logging.hpp"
 
 namespace rdm::gfx::gl {
@@ -167,6 +167,18 @@ void GLTexture::upload2d(int width, int height, DataType type,
     case RGBA:
       textureFormat = RGBA8;
       break;
+    case RGB_S3TC_DXT1:
+      textureFormat = IF_RGB_S3TC_DXT1;
+      break;
+    case RGBA_S3TC_DXT1:
+      textureFormat = IF_RGBA_S3TC_DXT1;
+      break;
+    case RGBA_S3TC_DXT3:
+      textureFormat = IF_RGBA_S3TC_DXT3;
+      break;
+    case RGBA_S3TC_DXT5:
+      textureFormat = IF_RGBA_S3TC_DXT5;
+      break;
     default:
       throw std::runtime_error("Invalid type");
   }
@@ -278,7 +290,7 @@ void GLProgram::link() {
       case GlslSpirVBinary: {
         glShaderBinary(1, &_shader, GL_SHADER_BINARY_FORMAT_SPIR_V, code,
                        codeLength[0]);
-        glSpecializeShader(_shader, "main", 0, NULL, NULL);
+        // glSpecializeShader(_shader, "main", 0, NULL, NULL);
       } break;
       default:
         throw std::runtime_error("Bad shader type :(");
@@ -435,7 +447,10 @@ void GLProgram::bind() {
   bindParameters();
 }
 
-GLBuffer::GLBuffer() { glCreateBuffers(1, &buffer); }
+GLBuffer::GLBuffer() {
+  glCreateBuffers(1, &buffer);
+  size = 0;
+}
 
 GLBuffer::~GLBuffer() { glDeleteBuffers(1, &buffer); }
 
@@ -542,7 +557,6 @@ void GLArrayPointers::upload() {
 }
 
 void GLArrayPointers::bind() { glBindVertexArray(array); }
-
 GLFrameBuffer::GLFrameBuffer() { glGenFramebuffers(1, &framebuffer); }
 
 GLFrameBuffer::~GLFrameBuffer() { glDeleteFramebuffers(1, &framebuffer); }

@@ -3,6 +3,10 @@
 #include <mutex>
 #include <vector>
 
+namespace rdm {
+class AbstractionWindow;
+};
+
 namespace rdm::gfx {
 /**
  * @brief The context, which is bound to a 'window' or an analagous widget.
@@ -11,12 +15,12 @@ namespace rdm::gfx {
  * `std::scoped_lock lock(context->getMutex());`
  */
 class BaseContext {
-  void* hwnd;
+  AbstractionWindow* hwnd;
 
   std::mutex mutex;
 
  public:
-  BaseContext(void* hwnd);
+  BaseContext(AbstractionWindow* window);
   virtual ~BaseContext() {};
 
   struct DisplayMode {
@@ -35,6 +39,6 @@ class BaseContext {
   virtual void unsetCurrent() = 0;
   virtual glm::ivec2 getBufferSize() = 0;
 
-  void* getHwnd() { return hwnd; }
+  AbstractionWindow* getHwnd() { return hwnd; }
 };
 };  // namespace rdm::gfx

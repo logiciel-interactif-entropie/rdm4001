@@ -1,9 +1,11 @@
 #include "video.hpp"
 
+#include <glad/egl.h>
+#include <glad/gl.h>
 #include <mpv/client.h>
 #include <mpv/render.h>
 
-#include "SDL_video.h"
+#include "SDL3/SDL_video.h"
 #include "engine.hpp"
 #include "gl_types.hpp"
 #include "gui/ngui.hpp"
@@ -26,7 +28,8 @@ static void mpv_event(void *ctx) {
 }
 
 static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
-  return SDL_GL_GetProcAddress(name);
+  // return (void *)SDL_GL_GetProcAddress(name);
+  return (void *)eglGetProcAddress(name);
 }
 #endif
 

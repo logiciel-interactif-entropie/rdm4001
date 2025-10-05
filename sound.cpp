@@ -9,7 +9,6 @@
 #include "console.hpp"
 #include "filesystem.hpp"
 #include "game.hpp"
-#include "glad/glad.h"
 #include "scheduler.hpp"
 #include "settings.hpp"
 

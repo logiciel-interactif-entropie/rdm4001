@@ -8,6 +8,7 @@
 #include "gfx/engine.hpp"
 #include "gfx/gui/ngui.hpp"
 #include "input.hpp"
+#include "localization.hpp"
 #include "logging.hpp"
 #include "profiler.hpp"
 #include "settings.hpp"
@@ -222,8 +223,9 @@ void SchedulerJob::task(SchedulerJob* job) {
   }
   job->shutdown();
   job->state = Stopped;
-  Log::printf(LOG_DEBUG, "Task %s/%i stopped. It hopes to see you soon.",
-              job->getStats().name, job->getStats().schedulerId);
+  Log::printf(LOG_DEBUG, "Task %s/%i stopped. %s", job->getStats().name,
+              job->getStats().schedulerId,
+              Lc(RDM_SCHED_JOB_STOPPED, "It hopes to see you soon."));
 }
 
 void SchedulerJob::startTask() {

@@ -14,6 +14,7 @@
 #include "gfx/mesh.hpp"
 #include "gfx/video.hpp"
 #include "gui/ngui.hpp"
+#include "object.hpp"
 #include "renderpass.hpp"
 #include "scheduler.hpp"
 #include "signal.hpp"
@@ -54,7 +55,10 @@ class TextureCache {
   std::map<std::string, std::pair<Info, std::unique_ptr<BaseTexture>>> textures;
 };
 
-class Engine {
+class Engine : public reflection::Object {
+  RDM_OBJECT
+  RDM_OBJECT_DEF(Engine, reflection::Object);
+
   friend class RenderJob;
   SchedulerJob* renderJob;
 
@@ -72,9 +76,6 @@ class Engine {
   std::unique_ptr<BaseBuffer> fullscreenBuffer;
   std::unique_ptr<BaseArrayPointers> fullScreenArrayPointers;
   std::shared_ptr<Material> fullscreenMaterial;
-
-  std::unique_ptr<BaseFrameBuffer> pingpongFramebuffer[2];
-  std::unique_ptr<BaseTexture> pingpongTexture[2];
 
   std::unique_ptr<BaseTexture> whiteTexture;
 
@@ -98,7 +99,6 @@ class Engine {
 
   glm::ivec2 windowResolution;
   glm::vec2 targetResolution;
-  std::mutex imguiLock;
 
   double maxFbScale;
   double forcedAspect;
@@ -109,11 +109,9 @@ class Engine {
   void* vpRef;
 
  public:
-  Engine(World* world, void* hwnd);
+  Engine(World* world, AbstractionWindow* hwnd);
 
   BaseTexture* getWhiteTexture() { return whiteTexture.get(); }
-
-  std::mutex& getImguiLock() { return imguiLock; }
 
   RenderPass& pass(RenderPass::Pass pass) { return passes[pass]; };
 
@@ -178,12 +176,13 @@ class Engine {
   Viewport* getCurrentViewport() {
     return currentViewport ? currentViewport : getMainViewport();
   };
+  Viewport* getGuiViewport() { return guiViewport.get(); }
+
+  float getForcedAspect() { return forcedAspect; }
 
   gfx::Camera& getCamera() { return getCurrentViewport()->getCamera(); }
 
   void* setViewport(Viewport* viewport);
   void finishViewport(void* _);
-
-  std::vector<BaseContext::DisplayMode> getDisplayModes();
 };
 }  // namespace rdm::gfx

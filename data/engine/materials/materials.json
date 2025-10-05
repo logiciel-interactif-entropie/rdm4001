@@ -1,90 +1,187 @@
 {
-    "Materials": {
-	"Sprite": { 
-	    "Techniques": [
-		{"ProgramName": "Sprite"}
-	    ]
-	},
-	"GuiPanel": {
-	    "Techniques": [
-		{"ProgramName": "GuiPanel"}
-	    ]
-	},
-	"GuiText": {
-	    "Techniques": [
-		{"ProgramName": "GuiText"}
-	    ]
-	},
-	"GuiImage": {
-	    "Techniques": [
-		{"ProgramName": "GuiImage"}
-	    ]
-	},
-	"Voxel": {
-	    "Techniques": [
-		{"ProgramName": "Voxel"}
-	    ]
-	},
-	"PostProcess": {
-	    "Techniques": [
-		{"ProgramName": "PostProcess1"}
-	    ]
-	},
-	"RayMarch": {
-	    "Techniques": [
-		{"ProgramName": "RayMarch"}
-	    ]
-	},
-	"HeightmapTesselated": {
-	    "Techniques": [
-		{"ProgramName": "HeightmapTesselated"}
-	    ]
-	},
-	"Mesh": {
-	    "Techniques": [
-		{"ProgramName": "Mesh"}
-	    ]
-	},
-	"MeshSkinned": {
-	    "Techniques": [
-		{"ProgramName": "MeshSkinned"}
-	    ]
-	},
-	"RoadTripMap": {
-	    "Techniques": [
-		{"ProgramName": "RoadTripMap"}
-	    ]
-	},
-	"GaussianBlur": {
-	    "Techniques": [
-		{"ProgramName": "GaussianBlur"}
-	    ]
-	},
-	"DbgPhysicsLine": {
-	    "Techniques": [
-		{"ProgramName": "DbgPhysicsLine"}
-	    ]
-	}
+  "Materials": {
+    "Sprite": {
+      "Techniques": [
+        {
+          "ProgramName": "Sprite"
+        }
+      ]
     },
-    "Programs": {
-	"GuiPanel": {"VSName": "engine/materials/gui/panel.vs.glsl", "FSName": "engine/materials/gui/panel.fs.glsl"},
-	"GuiText": {"VSName": "engine/materials/gui/panel.vs.glsl", "FSName": "engine/materials/gui/text.fs.glsl"},
-	"GuiImage": {"VSName": "engine/materials/gui/panel.vs.glsl", "FSName": "engine/materials/gui/image.fs.glsl"},
-	"PostProcess1": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/post.fs.glsl", "Bindings": {
-	    "texture0ms": 7,
-	    "texture0": 8,
-	    "texture1ms": 9,
-	    "texture1": 10,
-	    "texture2ms": 11,
-	    "texture2": 12
-	}},
-	"RayMarch": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/ray_march.fs.glsl"},
-	"HeightmapTesselated": {"VSName": "engine/materials/heightmap.vs.glsl", "FSName": "engine/materials/heightmap.fs.glsl", "GSName": "engine/materials/heightmap.gs.glsl"},
-	"Mesh": {"VSName": "engine/materials/mesh.vs.glsl", "FSName": "engine/materials/mesh.fs.glsl"},
-	"MeshSkinned": {"VSName": "engine/materials/mesh_skinned.vs.glsl", "FSName": "engine/materials/mesh.fs.glsl"},
-	"GaussianBlur": {"VSName": "engine/materials/post.vs.glsl", "FSName": "engine/materials/blur.fs.glsl"},
-	"RoadTripMap": {"VSName": "engine/materials/mesh.vs.glsl", "FSName": "engine/materials/rt/map.fs.glsl"},
-	"DbgPhysicsLine": {"VSName": "engine/materials/dbg/p_line.vs.glsl", "FSName": "engine/materials/dbg/p_line.fs.glsl"}
+    "GuiPanel": {
+      "Techniques": [
+        {
+          "ProgramName": "GuiPanel"
+        }
+      ]
     },
-    "Binary": "engine/materials/_materials.bin"
+    "GuiText": {
+      "Techniques": [
+        {
+          "ProgramName": "GuiText"
+        }
+      ]
+    },
+    "GuiImage": {
+      "Techniques": [
+        {
+          "ProgramName": "GuiImage"
+        }
+      ]
+    },
+    "Voxel": {
+      "Techniques": [
+        {
+          "ProgramName": "Voxel"
+        }
+      ]
+    },
+    "PostProcess": {
+      "Techniques": [
+        {
+          "ProgramName": "PostProcess1"
+        }
+      ]
+    },
+    "RayMarch": {
+      "Techniques": [
+        {
+          "ProgramName": "RayMarch"
+        }
+      ]
+    },
+    "HeightmapTesselated": {
+      "Techniques": [
+        {
+          "ProgramName": "HeightmapTesselated"
+        }
+      ]
+    },
+    "Mesh": {
+      "Techniques": [
+        {
+          "ProgramName": "Mesh"
+        }
+      ]
+    },
+    "MeshSkinned": {
+      "Techniques": [
+        {
+          "ProgramName": "MeshSkinned"
+        }
+      ]
+    },
+    "MeshNoDF": {
+      "Techniques": [
+        {
+          "ProgramName": "MeshNoDF"
+        }
+      ]
+    },
+    "MeshSkinnedNoDF": {
+      "Techniques": [
+        {
+          "ProgramName": "MeshSkinnedNoDF"
+        }
+      ]
+    },
+    "RoadTripMap": {
+      "Techniques": [
+        {
+          "ProgramName": "RoadTripMap"
+        }
+      ]
+    },
+    "GaussianBlur": {
+      "Techniques": [
+        {
+          "ProgramName": "GaussianBlur"
+        }
+      ]
+    },
+    "DbgPhysicsLine": {
+      "Techniques": [
+        {
+          "ProgramName": "DbgPhysicsLine"
+        }
+      ]
+    },
+    "DeferredRenderingPost": {
+      "Techniques": [
+        {
+          "ProgramName": "DeferredRenderingPost"
+        }
+      ]
+    }
+  },
+  "Programs": {
+    "GuiPanel": {
+      "VSName": "engine/materials/gui/panel.vs.glsl",
+      "FSName": "engine/materials/gui/panel.fs.glsl"
+    },
+    "GuiText": {
+      "VSName": "engine/materials/gui/panel.vs.glsl",
+      "FSName": "engine/materials/gui/text.fs.glsl"
+    },
+    "GuiImage": {
+      "VSName": "engine/materials/gui/panel.vs.glsl",
+      "FSName": "engine/materials/gui/image.fs.glsl"
+    },
+    "PostProcess1": {
+      "VSName": "engine/materials/post.vs.glsl",
+      "FSName": "engine/materials/post.fs.glsl",
+      "Bindings": {
+        "texture0": 8,
+        "texture1": 10,
+        "texture2": 12
+      }
+    },
+    "DeferredRenderingPost": {
+      "VSName": "engine/materials/post.vs.glsl",
+      "FSName": "engine/materials/deferred_post.fs.glsl"
+    },
+    "RayMarch": {
+      "VSName": "engine/materials/post.vs.glsl",
+      "FSName": "engine/materials/ray_march.fs.glsl"
+    },
+    "HeightmapTesselated": {
+      "VSName": "engine/materials/heightmap.vs.glsl",
+      "FSName": "engine/materials/heightmap.fs.glsl",
+      "GSName": "engine/materials/heightmap.gs.glsl"
+    },
+    "MeshNoDF": {
+      "VSName": "engine/materials/mesh.vs.glsl",
+      "FSName": "engine/materials/mesh.fs.glsl"
+    },
+    "MeshSkinnedNoDF": {
+      "VSName": "engine/materials/mesh_skinned.vs.glsl",
+      "FSName": "engine/materials/mesh.fs.glsl"
+    },
+    "Mesh": {
+      "VSName": "engine/materials/mesh.vs.glsl",
+      "FSName": "engine/materials/mesh.fs.glsl",
+      "Definitions": [
+        "DEFERRED_RENDERING"
+      ]
+    },
+    "MeshSkinned": {
+      "VSName": "engine/materials/mesh_skinned.vs.glsl",
+      "FSName": "engine/materials/mesh.fs.glsl",
+      "Definitions": [
+        "DEFERRED_RENDERING"
+      ]
+    },
+    "GaussianBlur": {
+      "VSName": "engine/materials/post.vs.glsl",
+      "FSName": "engine/materials/blur.fs.glsl"
+    },
+    "RoadTripMap": {
+      "VSName": "engine/materials/mesh.vs.glsl",
+      "FSName": "engine/materials/rt/map.fs.glsl"
+    },
+    "DbgPhysicsLine": {
+      "VSName": "engine/materials/dbg/p_line.vs.glsl",
+      "FSName": "engine/materials/dbg/p_line.fs.glsl"
+    }
+  },
+  "Binary": "engine/materials/_materials.bin"
 }

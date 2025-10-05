@@ -67,6 +67,5 @@ class VKContext : public BaseContext {
   virtual void swapBuffers();
   virtual void unsetCurrent();
   virtual glm::ivec2 getBufferSize();
-  static int prepareSdl();
 };
 }  // namespace rdm::gfx::vk

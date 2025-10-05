@@ -381,11 +381,6 @@ bool VKContext::checkValidationSupport() {
   return true;
 }
 
-int VKContext::prepareSdl() {
-  SDL_Vulkan_LoadLibrary(NULL);
-  return SDL_WINDOW_VULKAN;
-}
-
 void VKContext::setCurrent() {}
 
 void VKContext::swapBuffers() {}

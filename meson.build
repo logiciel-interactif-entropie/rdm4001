@@ -11,8 +11,6 @@ if get_option('buildtype').startswith('release')
 endif
 
 libtomcrypt = dependency('libtomcrypt', version: '>=1.18.2')
-sdl2 = dependency('sdl2')
-sdl2_ttf = dependency('SDL2_ttf')
 openal = dependency('openal')
 assimp = dependency('assimp')
 enet = dependency('libenet')
@@ -20,6 +18,8 @@ bullet = dependency('bullet')
 libsndfile = dependency('sndfile')
 curl = dependency('libcurl')
 mpv = dependency('mpv', required: get_option('mpv'))
+icu = dependency('icu-i18n')
+lua = dependency('luajit')
 
 common_proj = subproject('common')
 common_dep = common_proj.get_variable('libcommon_dep')
@@ -40,7 +40,7 @@ options = ['-DDISABLE_EASY_PROFILER']
 inc_dirs = ['.', 'gfx/imgui', 'subprojects/common']
 
 readline = dependency('', required: false)
-game_deps = [libsndfile, enet, common_dep, obz_dep, sdl2, sdl2_ttf, openal, assimp, bullet, curl, libtomcrypt]
+game_deps = [libsndfile, enet, common_dep, obz_dep, openal, assimp, bullet, curl, libtomcrypt, icu, lua]
 
 # HACK because bullet cant find LinearMath without this
 if build_machine.system() == 'haiku'
@@ -69,9 +69,25 @@ if mpv.found()
   add_project_arguments('-DRDM4001_FEATURE_MPV', language: ['cpp'])
 endif
 
-inc = include_directories(inc_dirs)
-
 xtra_src = []
+
+sdl = dependency('sdl3', required: get_option('sdl'))
+if sdl.found()
+  sdl_ttf = dependency('sdl3-ttf')
+  xtra_src += [
+    'sdl_window.cpp',
+    'sdl_window.hpp',
+    'gfx/imgui/backends/imgui_impl_sdl3.cpp',
+  ]
+  game_deps += [
+    sdl, sdl_ttf 
+  ]
+  add_project_arguments('-DRDM4001_FEATURE_SDL', language: ['cpp'])
+else
+  inc_dirs += [
+    'extern/sdl_includes'
+  ]
+endif
 
 if get_option('graphics').enabled()
   vulkan = dependency('vulkan', required: get_option('vulkan'))
@@ -89,9 +105,10 @@ if get_option('graphics').enabled()
   endif
 
   if get_option('openglmodern').enabled()
+    egl = dependency('egl', required: true)
     glad_proj = subproject('glad')
     glad_dep = glad_proj.get_variable('libglad_dep')
-    game_deps += [glad_dep]
+    game_deps += [glad_dep, egl]
     xtra_src += [
       'gfx/gl_context.cpp',
       'gfx/gl_context.hpp',
@@ -115,7 +132,10 @@ if get_option('graphics').enabled()
                 build_by_default: true)
 endif
 
-gamelib = static_library('game', [ 
+inc = include_directories(inc_dirs)
+gamelib = library('rdm4001', [
+  'event.cpp',
+  'event.hpp',
   'console.cpp',
   'console.hpp',
   'fun.cpp',
@@ -152,9 +172,24 @@ gamelib = static_library('game', [
   'worker.hpp',
   'world.cpp',
   'world.hpp',
+  'localization.cpp',
+  'localization.hpp',
+  'object.hpp',
+  'object.cpp',
+  'object_property.hpp',
+  'object_property.cpp',
+  'window.hpp',
+  'window.cpp',
 
-  'putil/fpscontroller.cpp',
+  'script/script.hpp',
+  'script/script.cpp',
+  'script/script_api.hpp',
+  'script/script_api.cpp',
+  'script/script_context.hpp',
+  'script/script_context.cpp',
+
   'putil/fpscontroller.hpp',
+  'putil/fpscontroller.cpp',
 
   'network/authentication.cpp',
   'network/authentication.hpp',
@@ -184,7 +219,6 @@ gamelib = static_library('game', [
   'gfx/gui/ngui_window.hpp',
 
   'gfx/imgui/backends/imgui_impl_opengl3.cpp',
-  'gfx/imgui/backends/imgui_impl_sdl2.cpp',
   'gfx/imgui/imconfig.h',
   'gfx/imgui/imgui.cpp',
   'gfx/imgui/imgui.h',
@@ -221,13 +255,15 @@ gamelib = static_library('game', [
   'gfx/viewport.hpp',
   'gfx/lighting.cpp',
   'gfx/lighting.hpp',
+  'gfx/postprocessing.cpp',
+  'gfx/postprocessing.hpp',
 
   xtra_src
 ], cpp_args: options + obz_options, include_directories: [inc], dependencies: game_deps)
 
 rdm4001_dep = declare_dependency(include_directories: inc,
 				 link_with: gamelib,
-                                 dependencies: game_deps)
+                                 dependencies: [common_dep, game_deps])
 
 suite = executable('testsuite',
            [ 'test/main.cpp',
@@ -247,7 +283,7 @@ if get_option('compile_experiments').enabled()
     'raymarcher/main.cpp',
     'raymarcher/rgame.hpp',
     'raymarcher/rgame.cpp'
-  ], include_directories: [inc], dependencies: [common_dep, sdl2], link_with: gamelib)
+  ], include_directories: [inc], dependencies: [common_dep, rdm4001_dep])
 
   b3geometry_dep = declare_dependency(link_args : ['-lBullet3Geometry', '-lBullet3Common'] ) 
   executable('roadtrip', [
@@ -258,5 +294,10 @@ if get_option('compile_experiments').enabled()
     'roadtrip/america.cpp',
     'roadtrip/pawn.hpp',
     'roadtrip/pawn.cpp',
-  ], cpp_args: options, include_directories: [inc], dependencies: [common_dep, sdl2, b3geometry_dep], link_with: gamelib)
+  ], cpp_args: options, include_directories: [inc], dependencies: [common_dep, b3geometry_dep, rdm4001_dep])
+
+  executable('luapg', [
+    'luapg/luapg.hpp',
+    'luapg/luapg.cpp',
+  ], dependencies: [rdm4001_dep])
 endif 

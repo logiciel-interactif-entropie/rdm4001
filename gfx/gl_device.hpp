@@ -1,5 +1,5 @@
 #pragma once
-#include <glad/glad.h>
+#include <glad/gl.h>
 
 #include "base_device.hpp"
 #include "gl_context.hpp"
@@ -7,7 +7,7 @@
 namespace rdm::gfx::gl {
 class GLDevice : public BaseDevice {
   BaseFrameBuffer* currentFrameBuffer;
-  bool setUpImgui;
+  int numFramebufferDepth;
 
  public:
   GLDevice(GLContext* context);
@@ -40,9 +40,6 @@ class GLDevice : public BaseDevice {
 
   virtual void targetAttachments(BaseFrameBuffer::AttachmentPoint* attachments,
                                  int count);
-
-  virtual void startImGui();
-  virtual void stopImGui();
 
   virtual void dbgPushGroup(std::string message);
   virtual void dbgPopGroup();

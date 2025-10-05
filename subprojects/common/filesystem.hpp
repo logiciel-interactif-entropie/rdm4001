@@ -2,6 +2,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 
 namespace common {
@@ -17,7 +18,13 @@ class FileIO {
   virtual size_t tell() = 0;
 
   virtual size_t read(void* out, size_t size) = 0;
-  virtual size_t write(const void* in, size_t size) = 0;
+  virtual size_t write(const void* in, size_t size) {
+    throw std::runtime_error("write unimplemented");
+  }
+
+  virtual std::optional<std::string> getLine() {
+    throw std::runtime_error("getLine unimplemented");
+  }
 };
 
 class FileSystemAPI {
@@ -25,8 +32,28 @@ class FileSystemAPI {
   // override this to return false if you don't want the engine to test if files
   // exist here, useful for HTTP or web retrevial fs apis
   virtual bool generalFSApi() { return true; }
-  virtual bool getFileExists(const char* path) = 0;
-  virtual OptionalData getFileData(const char* path) = 0;
+  virtual bool getFileExists(const char* path) {
+    auto fio = getFileIO(path, "r");
+    if (fio) {
+      delete fio.value();
+      return true;
+    } else {
+      return false;
+    }
+  }
+  virtual OptionalData getFileData(const char* path) {
+    auto fio = getFileIO(path, "rb");
+    if (fio) {
+      std::vector<unsigned char> b;
+      FileIO* v = fio.value();
+      b.resize(v->fileSize());
+      v->read(b.data(), b.size());
+      delete v;
+      return b;
+    } else {
+      return {};
+    }
+  }
   virtual std::optional<FileIO*> getFileIO(const char* path,
                                            const char* mode) = 0;
 };
@@ -44,6 +71,8 @@ class DataFileIO : public FileIO {
 
   virtual size_t read(void* out, size_t size);
   virtual size_t write(const void* in, size_t size);
+
+  virtual std::optional<std::string> getLine();
 };
 
 class DataFolderAPI : public FileSystemAPI {

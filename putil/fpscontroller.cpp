@@ -177,9 +177,11 @@ void FpsController::updateCamera(gfx::Camera& camera) {
   glm::vec3 forward = glm::vec3(-1, 0, 0);
   camera.setPosition(origin);
   camera.setTarget(origin + (cameraView * forward));
-  camera.setUp(glm::vec3(0, 0, 1));
   camera.setNear(1.0);
   camera.setFar(65535.f);
+  // btVector3 gravity = world->getWorld()->getGravity();
+  // camera.setUp(glm::normalize(BulletHelpers::fromVector3(-gravity)));
+  camera.setUp(glm::vec3(0, 0, 1));
 }
 
 void FpsController::detectGrounded() {

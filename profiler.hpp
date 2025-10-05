@@ -20,7 +20,7 @@ class Profiler {
     std::deque<float> samples;
 
     float avg() {
-      float v;
+      float v = 0.f;
       for (int i = 0; i < samples.size(); i++) v += samples[i];
       return v / samples.size();
     }

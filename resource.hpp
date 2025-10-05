@@ -2,9 +2,11 @@
 #include <assimp/scene.h>
 
 #include <functional>
+#include <glm/ext/vector_float4.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <unordered_map>
 
 #include "filesystem.hpp"
@@ -15,6 +17,7 @@
 #include "gfx/mesh.hpp"
 #include "gfx/rendercommand.hpp"
 #include "gfx/viewport.hpp"
+#include "object.hpp"
 namespace rdm {
 namespace gfx {
 class Engine;
@@ -23,14 +26,20 @@ class Engine;
 class ResourceManager;
 namespace resource {
 class Texture;
-}
+class Model;
+}  // namespace resource
 
 #define RESOURCE_MISSING_TEXTURE "engine/assets/missingtexture.png"
+#define RESOURCE_MISSING_MODEL "engine/assets/error.glb"
 
-class BaseResource {
+class BaseResource : public reflection::Object {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(BaseResource, reflection::Object);
+
   std::string name;
   bool isDataReady;
   bool needsData;
+  bool broken;
   ResourceManager* resourceManager;
 
  public:
@@ -39,6 +48,7 @@ class BaseResource {
     needsData = true;
     isDataReady = false;
     resourceManager = manager;
+    broken = false;
   }
   virtual ~BaseResource() = default;
 
@@ -66,11 +76,15 @@ class BaseResource {
   std::mutex m;
 };
 
-typedef std::string ResourceId;
+typedef uint64_t ResourceId;
 
-class ResourceManager {
+class ResourceManager : public reflection::Object {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(ResourceManager, reflection::Object);
+
   std::unordered_map<ResourceId, std::unique_ptr<BaseResource>> resources;
   resource::Texture* missingTexture;
+  resource::Model* missingModel;
   gfx::Viewport* previewViewport;
 
   void startTaskForResource(BaseResource* br);
@@ -88,16 +102,18 @@ class ResourceManager {
 
   template <typename T>
   T* load(const char* resourceName) {
-    if (BaseResource* rsc = getResource(resourceName)) {
+    ResourceId id = hash(resourceName);
+
+    if (BaseResource* rsc = getResource(id)) {
       if (T* crsc = dynamic_cast<T*>(rsc)) {
         return crsc;
       } else {
-        return NULL;
+        throw std::runtime_error("ResourceManager::load, invalid type");
       }
     }
 
     T* rsc = new T(this, resourceName);
-    resources[resourceName].reset(rsc);
+    resources[id].reset(rsc);
     startTaskForResource(rsc);
     return rsc;
   }
@@ -113,10 +129,19 @@ class ResourceManager {
   void imgui(gfx::Engine* engine);
 
   void deleteGfxResources();
+
+  static constexpr ResourceId hash(const char* input) {
+    return std::hash<std::string>{}(input);
+  }
 };
+
+#define RID(n) (rdm::ResourceManager::hash(n))
 
 namespace resource {
 class BaseGfxResource : public BaseResource {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(BaseGfxResource, BaseResource);
+
   bool isReady;
 
  public:
@@ -130,15 +155,29 @@ class BaseGfxResource : public BaseResource {
 };
 
 class Texture : public BaseGfxResource {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(Texture, BaseGfxResource);
+
   std::unique_ptr<gfx::BaseTexture> texture;
+  enum TextureHandler {
+    Unloaded,
+    Ktx2,
+    Stbi,
+  };
+
+  TextureHandler handler;
+
   void* textureData;
 
   int width;
   int height;
   int channels;
 
+  bool dirtyTextureSettings;
+
  public:
   Texture(ResourceManager* rm, std::string name);
+  virtual ~Texture();
 
   gfx::TextureCache::Info getInfo();
 
@@ -152,11 +191,28 @@ class Texture : public BaseGfxResource {
 
   virtual Type getType() { return BaseResource::Texture; }
   gfx::BaseTexture* getTexture();
+
+  struct TextureSettings {
+    gfx::BaseTexture::Filtering minFiltering;
+    gfx::BaseTexture::Filtering maxFiltering;
+  };
+
+  TextureSettings getTextureSettings() { return textureSettings; }
+  void setTextureSettings(TextureSettings ts) {
+    textureSettings = ts;
+    dirtyTextureSettings = true;
+  }
+
+ private:
+  TextureSettings textureSettings;
 };
 
 #define MODEL_MAX_BONE_TRANSFORMS 128
 
 class Model : public BaseGfxResource {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(Model, BaseGfxResource);
+
   Assimp::Importer importer;
 
   const aiScene* scene;
@@ -169,12 +225,35 @@ class Model : public BaseGfxResource {
   };
 
   struct Material {
+    bool hasAlbedo;
     Texture diffuse;
+    glm::vec3 albedo;
+
+    float roughness;
+    float metallic;
+    float specular;
+    float rimLight;
+
+    struct Upload {
+      glm::vec4 albedo;
+      glm::vec4 pbrMaterials;
+
+      Upload(Material& material) {
+        this->albedo = glm::vec4(material.albedo, 1.0);
+        pbrMaterials.x = material.roughness;
+        pbrMaterials.y = material.metallic;
+        pbrMaterials.z = material.specular;
+        pbrMaterials.w = material.rimLight;
+      }
+    };
+
+    std::unique_ptr<gfx::BaseBuffer> pbrData;
   };
 
   std::map<std::string, gfx::Mesh> meshes;
   std::map<std::string, gfx::BoneInfo> boneInfo;
   std::shared_ptr<gfx::Material> gfx_material;
+  std::shared_ptr<gfx::Material> gfx_materialDf;
   std::map<std::string, Material> materials;
   std::vector<Texture*> deferedTextures;
 

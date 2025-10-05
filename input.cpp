@@ -1,13 +1,14 @@
 #include "input.hpp"
 
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_keyboard.h>
 #include <pthread.h>
 
 #include <csignal>
 #include <thread>
 
-#include "SDL.h"
-#include "SDL_keyboard.h"
 #include "logging.hpp"
+#include "object.hpp"
 #include "settings.hpp"
 
 #ifdef __linux
@@ -110,12 +111,12 @@ rdm::Input* Input::singleton() {
 
 void Input::startEditingText(bool clear) {
   if (clear) text.clear();
-  SDL_StartTextInput();
+  // SDL_StartTextInput(window);
   editingText = true;
 }
 
 void Input::stopEditingText() {
-  SDL_StopTextInput();
+  // SDL_StopTextInput(window);
   editingText = false;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
-#include <SDL2/SDL_keycode.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_keycode.h>
 
 #include <deque>
 #include <glm/glm.hpp>
@@ -8,6 +9,7 @@
 #include <string>
 
 #include "signal.hpp"
+#include "window.hpp"
 
 namespace rdm {
 /**
@@ -56,10 +58,14 @@ class Input {
   std::string text;
   float mouseSensitivity;
 
+  AbstractionWindow* window;
+
   bool keysDown[255];
 
  public:
   static Input* singleton();
+
+  void setWindow(AbstractionWindow* window) { this->window = window; }
 
   bool isEditingText() { return editingText; }
   void startEditingText(bool clear = true);

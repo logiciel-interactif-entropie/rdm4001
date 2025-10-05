@@ -2,8 +2,8 @@
 #include "ngui.hpp"
 #include "resource.hpp"
 
-#define NGUI_UI_FONT "engine/gui/msgothic.ttf", 14
-#define NGUI_TITLE_FONT "engine/gui/msgothic.ttf", 11
+#define NGUI_UI_FONT "gui_pak://msgothic.ttf", 14
+#define NGUI_TITLE_FONT "gui_pak://msgothic.ttf", 11
 
 namespace rdm::gfx::gui {
 class NGuiStyle {};

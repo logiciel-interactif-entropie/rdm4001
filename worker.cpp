@@ -1,6 +1,8 @@
 #include "worker.hpp"
 
 #include <chrono>
+#include <exception>
+#include <source_location>
 #include <thread>
 
 #include "fun.hpp"
@@ -13,7 +15,9 @@ WorkerManager::WorkerManager() {
   running = true;
   managerThread = std::thread(std::bind(&WorkerManager::manager, this));
   for (int i = 0; i < Fun::getNumCpus(); i++) {
-    availableThreads.push_back(new Thread());
+    Thread* th = new Thread();
+    th->id = i;
+    availableThreads.push_back(th);
   }
 }
 
@@ -25,12 +29,19 @@ void WorkerManager::manager() {
         auto job = queuedJobs.back();
         if (availableThreads.size()) {
           Thread* th = availableThreads.back();
+          th->currentJob = job;
           availableThreads.pop_back();
-          th->doneExecuting = false;
+          th->promise = new std::promise<int>();
           th->thread = std::thread([th, job] {
-            job();
-            th->doneExecuting = true;
+            try {
+              job.func();
+              th->promise->set_value_at_thread_exit(0);
+            } catch (std::exception& e) {
+              th->promise->set_exception_at_thread_exit(
+                  std::current_exception());
+            }
           });
+          th->result = th->promise->get_future();
           processingThreads.push_back(th);
         } else
           break;
@@ -38,10 +49,26 @@ void WorkerManager::manager() {
       }
       if (processingThreads.size()) {
         Thread* th = processingThreads.back();
-        if (th->doneExecuting) {
+        if (th->result.valid()) {
+          try {
+            int result = th->result.get();
+            if (result != 0)
+              Log::printf(LOG_DEBUG, "Worker job returned %i", result);
+          } catch (std::exception& e) {
+            Log::printf(LOG_FATAL, "Worker job unhandled error: %s, exiting",
+                        e.what());
+#ifndef NDEBUG
+            std::source_location& loc = th->currentJob.value().loc;
+            Log::printf(LOG_ERROR, "Worker job location: %s in %s:%i",
+                        loc.function_name(), loc.file_name(), loc.line());
+#endif
+            exit(-1);
+          }
+
           if (th->thread.joinable()) th->thread.join();
           processingThreads.pop_back();
-          th->doneExecuting = false;
+          th->currentJob = {};
+          delete th->promise;
           availableThreads.push_back(th);
         }
       }
@@ -51,7 +78,7 @@ void WorkerManager::manager() {
 
   if (processingThreads.size()) {
     for (auto& th : processingThreads) {
-      if (th->doneExecuting) {
+      if (th->result.valid()) {
         delete th;
       } else {
         Log::printf(LOG_WARN, "Thread not done executing, waiting...");
@@ -64,8 +91,9 @@ void WorkerManager::manager() {
   }
 
   for (auto& th : availableThreads) {
-    if (th->thread.joinable()) th->thread.join();
-
+    if (th->thread.joinable()) {
+      th->thread.join();
+    }
     delete th;
   }
 

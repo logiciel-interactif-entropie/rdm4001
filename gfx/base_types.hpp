@@ -36,7 +36,15 @@ enum ShaderBinaryType {
   RawShaderCode,
 };
 
-class BaseTexture {
+class BaseGfxEntity {
+  std::string tag;
+
+ public:
+  void setTag(std::string tag) { this->tag = tag; };
+  std::string getTag() { return tag; }
+};
+
+class BaseTexture : public BaseGfxEntity {
  public:
   enum Type {
     Texture1D,
@@ -59,11 +67,21 @@ class BaseTexture {
     RGBAF32,
     D8,
     D24S8,
+
+    IF_RGB_S3TC_DXT1,
+    IF_RGBA_S3TC_DXT1,
+    IF_RGBA_S3TC_DXT3,
+    IF_RGBA_S3TC_DXT5,
   };
 
   enum Format {
     RGB,
     RGBA,
+
+    RGB_S3TC_DXT1,
+    RGBA_S3TC_DXT1,
+    RGBA_S3TC_DXT3,
+    RGBA_S3TC_DXT5,
   };
 
   enum Filtering {
@@ -132,7 +150,7 @@ struct ShaderFile {
  * @brief Buffer. Use BaseTexture to store texture data.
  *
  */
-class BaseBuffer {
+class BaseBuffer : public BaseGfxEntity {
  public:
   /**
    * @brief Type of the buffer.
@@ -210,7 +228,7 @@ class BaseBuffer {
  * (MaterialCache::getOrLoad)
  *
  */
-class BaseProgram {
+class BaseProgram : public BaseGfxEntity {
  public:
   enum Shader { Vertex, Fragment, Geometry };
 
@@ -271,7 +289,7 @@ class BaseProgram {
  * @brief Array Pointers are analagous to VAO's in OpenGL.
  * This will probably need updating when I port gfx to other graphics libraries
  */
-class BaseArrayPointers {
+class BaseArrayPointers : public BaseGfxEntity {
  public:
   struct Attrib {
     int layoutId;
@@ -320,7 +338,7 @@ class BaseArrayPointers {
  * This requires you create a texture using BaseDevice::createTexture, and
  * reserve it using functions like BaseTexture::reserve2d.
  */
-class BaseFrameBuffer {
+class BaseFrameBuffer : public BaseGfxEntity {
   friend class Engine;
 
  public:

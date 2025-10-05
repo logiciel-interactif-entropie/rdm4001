@@ -12,8 +12,8 @@
 #include "gl_context.hpp"
 #include "gl_device.hpp"
 #include "gui/ngui.hpp"
-#include "imgui/imgui.h"
 #include "logging.hpp"
+#include "postprocessing.hpp"
 #include "renderpass.hpp"
 #include "scheduler.hpp"
 #include "settings.hpp"
@@ -29,6 +29,10 @@
 #include "stb_image.h"
 
 namespace rdm::gfx {
+RDM_REFLECTION_BEGIN_DESCRIBED(Engine)
+RDM_REFLECTION_PROPERTY_FLOAT(Engine, Time, &Engine::getTime, NULL);
+RDM_REFLECTION_END_DESCRIBED()
+
 #ifdef RDM4001_FEATURE_GLMODERN
 GFX_API_INSTANTIATOR(GLModern, gl::GLContext, gl::GLDevice);
 #endif
@@ -135,9 +139,7 @@ BaseTexture* TextureCache::createCacheTexture(const char* path, Info info) {
 
 void TextureCache::deleteTexture(const char* path) { textures.erase(path); }
 
-static CVar r_bloomamount("r_bloomamount", "10", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_rate("r_rate", "60.0", CVARF_SAVE | CVARF_GLOBAL);
-static CVar r_bloom("r_bloom", "1", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_scale("r_scale", "1.0", CVARF_SAVE | CVARF_GLOBAL);
 static CVar r_exposure("r_exposure", "0.0", CVARF_GLOBAL);
 static CVar r_samples("r_samples", "0", CVARF_GLOBAL | CVARF_SAVE);
@@ -164,72 +166,54 @@ class RenderJob : public SchedulerJob {
 
     profiler.fun("step");
 
-    bool bloomEnabled = r_bloom.getBool();
+    CVar* r_bloom = rdm::Settings::singleton()->getCvar("r_bloom");
+
+    bool bloomEnabled = r_bloom->getBool();
+    engine->time = getStats().time;
+
+    glm::ivec2 bufSize = engine->getContext()->getBufferSize();
+    static bool lastBloom = false;
+    static float lastScale = 1.0;
+    if (engine->windowResolution != bufSize ||
+        lastScale != r_scale.getFloat() || lastBloom != r_bloom->getBool()) {
+      lastBloom = r_bloom->getBool();
+      lastScale = r_scale.getFloat();
+      engine->windowResolution = bufSize;
+      ViewportGfxSettings settings = engine->viewport->getSettings();
+      // settings.numColorBuffers = r_bloom->getBool() ? 2 : 1;
+      settings.numColorBuffers = NR_GBUFFER_TEXTURES;
+      settings.canBloomBeEnabled = true;
+
+      glm::vec2 fbSizeF = engine->windowResolution;
+      double s = std::min(engine->maxFbScale, (double)r_scale.getFloat());
+      fbSizeF *= s;
+      if (engine->forcedAspect != 0.0) {
+        fbSizeF.x = fbSizeF.y * engine->forcedAspect;
+      }
+      fbSizeF = glm::max(fbSizeF, glm::vec2(1, 1));
+      engine->targetResolution = fbSizeF;
+      settings.resolution = engine->targetResolution;
+
+      ViewportGfxSettings guiSettings = engine->guiViewport->getSettings();
+      guiSettings.resolution = engine->targetResolution;
+
+      engine->initializeBuffers(bufSize, true);
+      engine->viewport->updateSettings(settings);
+      engine->guiViewport->updateSettings(settings);
+    }
+
+    engine->getWorld()->getGame()->getResourceManager()->tickGfx(engine);
+
+    void* _ = engine->viewport->bind();
 
     try {
-      engine->time = getStats().time;
-
-      glm::ivec2 bufSize = engine->getContext()->getBufferSize();
-      static bool lastBloom = false;
-      static float lastScale = 1.0;
-      if (engine->windowResolution != bufSize ||
-          lastScale != r_scale.getFloat() || lastBloom != r_bloom.getBool()) {
-        lastBloom = r_bloom.getBool();
-        lastScale = r_scale.getFloat();
-        engine->windowResolution = bufSize;
-        ViewportGfxSettings settings = engine->viewport->getSettings();
-        settings.numColorBuffers = r_bloom.getBool() ? 2 : 1;
-
-        glm::vec2 fbSizeF = engine->windowResolution;
-        double s = std::min(engine->maxFbScale, (double)r_scale.getFloat());
-        fbSizeF *= s;
-        if (engine->forcedAspect != 0.0) {
-          fbSizeF.x = fbSizeF.y * engine->forcedAspect;
-        }
-        fbSizeF = glm::max(fbSizeF, glm::vec2(1, 1));
-        engine->targetResolution = fbSizeF;
-        settings.resolution = engine->targetResolution;
-
-        ViewportGfxSettings guiSettings = engine->guiViewport->getSettings();
-        guiSettings.resolution = engine->targetResolution;
-
-        engine->initializeBuffers(bufSize, true);
-        engine->viewport->updateSettings(settings);
-        engine->guiViewport->updateSettings(settings);
-      }
-
-      engine->getWorld()->getGame()->getResourceManager()->tickGfx(engine);
-
-      void* _;
-      if (!r_disablepost.getBool()) _ = engine->viewport->bind();
-
-      BaseFrameBuffer::AttachmentPoint drawBuffers[] = {
-          BaseFrameBuffer::Color0,
-          BaseFrameBuffer::Color1,
-      };
-
-      {
-        // clear buffers
-        device->targetAttachments(&drawBuffers[0], 1);
-        device->clear(engine->clearColor.x, engine->clearColor.y,
-                      engine->clearColor.z, 1.0);
-        if (!r_disablepost.getBool() && bloomEnabled) {
-          device->targetAttachments(&drawBuffers[1], 1);
-          device->clear(0.0, 0.0, 0.0, 0.0);
-
-          device->targetAttachments(drawBuffers, 2);
-        } else {
-          device->targetAttachments(drawBuffers, 1);
-        }
-      }
-
       device->viewport(0, 0, engine->targetResolution.x,
                        engine->targetResolution.y);
       device->clearDepth();
-      device->setDepthState(BaseDevice::LEqual);
-      device->setCullState(BaseDevice::FrontCW);
 
       if (!engine->isInitialized) engine->initialize();
+
+      engine->viewport->getPostProcessingManager()->prepare(device);
 
       try {
         engine->render();
@@ -237,125 +221,20 @@ class RenderJob : public SchedulerJob {
         Log::printf(LOG_ERROR, "Error in engine->render(), e.what() = %s",
                     e.what());
       }
-
-      /* TODO: Auto exposure feature
-      struct {
-        char r, g, b, a;
-      } pixelData[100 * 100];
-      engine->getDevice()->readPixels((engine->targetResolution.x / 2.f) - 100,
-                                      (engine->targetResolution.y / 2.f) - 100,
-                                      100, 100, &pixelData);
-      float avg = 0.f;
-      for (int i = 0; i < 100; i++) {
-        for (int j = 0; j < 100; j++) {
-          int p = i + (j * 100);
-          float v = std::max(std::max(pixelData[p].r, pixelData[p].g),
-                             pixelData[p].b);
-          avg += v;
-        }
-      }
-      rdm::Log::printf(LOG_DEBUG, "%f", avg);
-      avg /= 100.f * 100.f;
-      float target = avg;
-      float old = r_exposure.getFloat();
-      */
-
-      if (!r_disablepost.getBool()) engine->viewport->unbind(_);
-
-      device->setDepthState(BaseDevice::Always);
-      device->setCullState(BaseDevice::None);
-
-      if (!r_disablepost.getBool() && bloomEnabled) {
-        {
-          profiler.fun("Post process: Bloom");
-          bool horizontal = true, firstIteration = true;
-          int amount = r_bloomamount.getInt();
-          std::shared_ptr<gfx::Material> material =
-              engine->getMaterialCache()->getOrLoad("GaussianBlur").value();
-          for (int i = 0; i < amount; i++) {
-            void* framebuffer = engine->getDevice()->bindFramebuffer(
-                engine->pingpongFramebuffer[horizontal].get());
-            engine->renderFullscreenQuad(
-                NULL, material.get(),
-                [this, horizontal, firstIteration](BaseProgram* program) {
-                  program->setParameter(
-                      "horizontal", DtInt,
-                      BaseProgram::Parameter{.integer = horizontal});
-                  program->setParameter(
-                      "image", DtSampler,
-                      BaseProgram::Parameter{
-                          .texture.slot = 0,
-                          .texture.texture =
-                              firstIteration
-                                  ? engine->viewport->get(1)
-                                  : engine->pingpongTexture[!horizontal]
-                                        .get()});
-                });
-            horizontal = !horizontal;
-            if (firstIteration) firstIteration = false;
-            engine->getDevice()->unbindFramebuffer(framebuffer);
-            profiler.end();
-          }
-        }
-      }
-
-      device->viewport(0, 0, engine->windowResolution.x,
-                       engine->windowResolution.y);
-
-      if (!r_disablepost.getBool()) {
-        profiler.fun("Post process: Draw");
-        engine->renderFullscreenQuad(
-            engine->viewport->get(0), NULL, [this](BaseProgram* p) {
-              bool multisampling = r_samples.getInt();
-              p->setParameter(
-                  multisampling ? "texture1ms" : "texture1", DtSampler,
-                  BaseProgram::Parameter{
-                      .texture.slot = multisampling ? 5 : 1,
-                      .texture.texture = r_bloom.getBool()
-                                             ? engine->pingpongTexture[1].get()
-                                             : NULL});
-              p->setParameter(
-                  !multisampling ? "texture1ms" : "texture1", DtSampler,
-                  BaseProgram::Parameter{.texture.slot = !multisampling ? 5 : 1,
-                                         .texture.texture = NULL});
-              p->setParameter(
-                  multisampling ? "texture2ms" : "texture2", DtSampler,
-                  BaseProgram::Parameter{
-                      .texture.slot = multisampling ? 6 : 2,
-                      .texture.texture = engine->guiViewport->get()});
-              p->setParameter(
-                  !multisampling ? "texture2ms" : "texture2", DtSampler,
-                  BaseProgram::Parameter{.texture.slot = !multisampling ? 6 : 2,
-                                         .texture.texture = NULL});
-              p->setParameter(
-                  "bloom", DtInt,
-                  BaseProgram::Parameter{.integer = r_bloom.getBool()});
-              p->setParameter(
-                  "target_res", DtVec2,
-                  BaseProgram::Parameter{.vec2 = engine->targetResolution});
-              p->setParameter(
-                  "window_res", DtVec2,
-                  BaseProgram::Parameter{.vec2 = engine->windowResolution});
-              p->setParameter("forced_aspect", DtFloat,
-                              BaseProgram::Parameter{
-                                  .number = (float)engine->forcedAspect});
-              p->setParameter(
-                  "exposure", DtFloat,
-                  BaseProgram::Parameter{.number = r_exposure.getFloat()});
-              p->setParameter(
-                  "samples", DtInt,
-                  BaseProgram::Parameter{.integer = r_samples.getInt()});
-            });
-        profiler.end();
-      }
     } catch (std::exception& e) {
       std::scoped_lock lock(engine->context->getMutex());
       Log::printf(LOG_ERROR, "Error in render: %s", e.what());
     }
 
-    engine->device->stopImGui();
+    engine->viewport->unbind(_);
 
-    engine->imguiLock.unlock();
+    device->setDepthState(BaseDevice::Always);
+    device->setCullState(BaseDevice::None);
+
+    device->viewport(0, 0, engine->windowResolution.x,
+                     engine->windowResolution.y);
+
+    engine->viewport->draw(engine->windowResolution);
 
     engine->afterGuiRenderStepped.fire();
 
@@ -367,11 +246,15 @@ class RenderJob : public SchedulerJob {
 
     profiler.end();
 
+    if (engine->currentViewport) {
+      throw std::runtime_error("Viewports not unbound at end of the frame");
+    }
+
     return Stepped;
   }
 };
 
-Engine::Engine(World* world, void* hwnd) {
+Engine::Engine(World* world, AbstractionWindow* hwnd) {
   this->world = world;
   fullscreenSamples = r_samples.getInt();
   maxFbScale = 1.0;
@@ -392,10 +275,14 @@ Engine::Engine(World* world, void* hwnd) {
 
   clearColor = glm::vec3(0.3, 0.3, 0.3);
 
+  CVar* mdl_deferred = Settings::singleton()->getCvar("mdl_render_deferred");
+
   ViewportGfxSettings settings;
   settings.resolution = context->getBufferSize();
   settings.msaaSamples = fullscreenSamples;
-  settings.numColorBuffers = 2;  // color, bloom
+  settings.canBloomBeEnabled = true;
+  settings.numColorBuffers = NR_GBUFFER_TEXTURES;
+  settings.wantNoDeferred = !mdl_deferred->getBool();
   viewport.reset(new Viewport(this, settings));
 
   settings.msaaSamples = fullscreenSamples;
@@ -418,6 +305,8 @@ Engine::Engine(World* world, void* hwnd) {
   whiteTexture->upload2d(1, 1, DtUnsignedByte, BaseTexture::RGB, tx);
 
   renderJob = world->getScheduler()->addJob(new RenderJob(this));
+
+  ngui = std::unique_ptr<gui::NGuiManager>(new gui::NGuiManager(this));
   world->stepped.listen([this] { stepped(); });
   isInitialized = false;
 }
@@ -432,13 +321,14 @@ void Engine::renderFullscreenQuad(
       fullscreenProgram->setParameter(
           texture->isMultisampled() ? "texture0ms" : "texture0", DtSampler,
           BaseProgram::Parameter{
-              .texture.slot = texture->isMultisampled() ? 4 : 0,
-              .texture.texture = texture});
+              .texture = {.slot = texture->isMultisampled() ? 4 : 0,
+                          .texture = texture},
+          });
       fullscreenProgram->setParameter(
           !texture->isMultisampled() ? "texture0ms" : "texture0", DtSampler,
           BaseProgram::Parameter{
-              .texture.slot = !texture->isMultisampled() ? 4 : 0,
-              .texture.texture = NULL});
+              .texture = {.slot = !texture->isMultisampled() ? 4 : 0,
+                          .texture = NULL}});
     }
     setParameters(fullscreenProgram);
     fullscreenProgram->bind();
@@ -471,41 +361,18 @@ void Engine::initializeBuffers(glm::vec2 res, bool reset) {
   }
   fbSizeF = glm::max(fbSizeF, glm::vec2(1, 1));
   targetResolution = fbSizeF;
-
-  try {
-    // set up ping pong buffers for gaussian blur
-    for (int i = 0; i < 2; i++) {
-      if (!reset) {
-        pingpongFramebuffer[i] = device->createFrameBuffer();
-        pingpongTexture[i] = device->createTexture();
-      } else {
-        pingpongFramebuffer[i]->destroyAndCreate();
-        pingpongTexture[i]->destroyAndCreate();
-      }
-
-      if (r_bloom.getBool()) {
-        pingpongTexture[i]->reserve2dMultisampled(
-            fbSizeF.x, fbSizeF.y, BaseTexture::RGBAF32, fullscreenSamples);
-        pingpongFramebuffer[i]->setTarget(pingpongTexture[i].get());
-      }
-    }
-  } catch (std::exception& e) {
-    Log::printf(LOG_ERROR, "Creating post fb: %s", e.what());
-  }
 }
 
 void Engine::stepped() {}
 
+#ifndef NDEBUG
+static CVar r_resource_menu("r_resource_menu", "1");
+#else
 static CVar r_resource_menu("r_resource_menu", "0");
+#endif
 
 void Engine::render() {
-  imguiLock.lock();
-  device->startImGui();
-
   getRenderJob()->getProfiler().fun("Render");
-
-  if (r_resource_menu.getBool())
-    getWorld()->getGame()->getResourceManager()->imgui(this);
 
   ngui->render();
 
@@ -590,7 +457,6 @@ void Engine::render() {
 }
 
 void Engine::initialize() {
-  ngui = std::unique_ptr<gui::NGuiManager>(new gui::NGuiManager(this));
   isInitialized = true;
 
   initialized.fire();
@@ -632,9 +498,5 @@ void Engine::finishViewport(void* _) {
       viewport->applyRenderState();
     }
   }
-}
-
-std::vector<BaseContext::DisplayMode> Engine::getDisplayModes() {
-  return regs.getSupportedDisplayModes();
 }
 }  // namespace rdm::gfx

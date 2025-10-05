@@ -6,6 +6,13 @@
 #include "world.hpp"
 
 namespace rdm::network {
+RDM_REFLECTION_BEGIN_DESCRIBED(Entity)
+RDM_REFLECTION_PROPERTY_INT(Entity, Id, &Entity::getEntityId, NULL);
+RDM_REFLECTION_PROPERTY_STRING(Entity, Type, &Entity::getTypeName, NULL);
+RDM_REFLECTION_PROPERTY_STRING(Entity, Info, &Entity::getEntityInfo, NULL);
+RDM_REFLECTION_PROPERTY_OBJECT(Entity, World, &Entity::getWorld, NULL);
+RDM_REFLECTION_END_DESCRIBED()
+
 template <>
 void ReplicateProperty<std::string>::serialize(BitStream& stream) {
   stream.writeString(value);

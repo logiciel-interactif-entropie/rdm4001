@@ -1,3 +1,6 @@
+#include <assimp/material.h>
+#include <assimp/types.h>
+
 #include <algorithm>
 #include <assimp/IOStream.hpp>
 #include <assimp/IOSystem.hpp>
@@ -5,6 +8,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
+
+#include "object.hpp"
+#include "object_property.hpp"
+#include "script/script_api.hpp"
+#include "subprojects/common/logging.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/ext/matrix_transform.hpp>
@@ -17,6 +25,17 @@
 #include "settings.hpp"
 
 namespace rdm::resource {
+RDM_REFLECTION_BEGIN_DESCRIBED(Model);
+RDM_REFLECTION_PROPERTY_FUNCTION(Model, Render, [](lua_State* L) {
+  Model* model = script::ObjectBridge::getDescribed<Model>(L, 1);
+  gfx::Engine* engine = script::ObjectBridge::getDescribed<gfx::Engine>(L, 2);
+  model->render(engine->getDevice());
+  return 0;
+})
+RDM_REFLECTION_END_DESCRIBED();
+
+static CVar mdl_render_deferred("mdl_render_deferred", "0", CVARF_GLOBAL);
+
 Model::Model(ResourceManager* rm, std::string name)
     : BaseGfxResource(rm, name) {
   path = std::string(name).find_last_of('/');
@@ -105,12 +124,14 @@ void Model::gfxUpload(gfx::Engine* engine) {
                                           &channels, 4);
       texture->texture->upload2d(width, height, gfx::DtUnsignedByte,
                                  gfx::BaseTexture::RGBA, uc);
+      stbi_image_free(uc);
     } else {
       texture->texture->upload2d(textureData->mWidth, textureData->mHeight,
                                  gfx::DtUnsignedByte, gfx::BaseTexture::RGBA,
                                  (void*)textureData->pcData);
     }
   }
+
   Log::printf(LOG_DEBUG, "Loaded %i textures", deferedTextures.size());
   deferedTextures.clear();
 
@@ -237,9 +258,21 @@ void Model::gfxUpload(gfx::Engine* engine) {
     meshes[mesh->mName.C_Str()] = std::move(meshData);
   }
 
+  for (auto& [name, material] : materials) {
+    material.pbrData = engine->getDevice()->createBuffer();
+    Material::Upload upload = Material::Upload(material);
+    material.pbrData->upload(gfx::BaseBuffer::Uniform,
+                             gfx::BaseBuffer::StaticDraw,
+                             sizeof(Material::Upload), &upload);
+    Log::printf(LOG_DEBUG, "Uploaded information for %s", name.c_str());
+  }
+
+  std::string materialName = skinned ? "MeshSkinned" : "Mesh";
   gfx_material = engine->getMaterialCache()
-                     ->getOrLoad(skinned ? "MeshSkinned" : "Mesh")
+                     ->getOrLoad((materialName + "NoDF").c_str())
                      .value();
+  gfx_materialDf =
+      engine->getMaterialCache()->getOrLoad(materialName.c_str()).value();
 
   setReady();
 }
@@ -276,9 +309,35 @@ void Model::onLoadData(common::OptionalData data) {
     for (int i = 0; i < scene->mNumMaterials; i++) {
       aiMaterial* material = scene->mMaterials[i];
       Material& matData = materials[material->GetName().C_Str()];
+      if (aiGetMaterialFloat(material, AI_MATKEY_ROUGHNESS_FACTOR,
+                             &matData.roughness) != AI_SUCCESS) {
+        Log::printf(LOG_DEBUG, "Unable to load material roughness");
+        matData.roughness = 1.f;
+      }
+      if (aiGetMaterialFloat(material, AI_MATKEY_METALLIC_FACTOR,
+                             &matData.metallic) != AI_SUCCESS) {
+        Log::printf(LOG_DEBUG, "Unable to load material metallic");
+        matData.metallic = 0.f;
+      }
+      if (aiGetMaterialFloat(material, AI_MATKEY_SPECULAR_FACTOR,
+                             &matData.specular) != AI_SUCCESS) {
+        Log::printf(LOG_DEBUG, "Unable to load material specular");
+        matData.specular = 0.f;
+      }
+      matData.rimLight = 0.f;
+
+      aiColor4D color;
+      if (aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &color) !=
+          AI_SUCCESS) {
+        Log::printf(LOG_DEBUG, "Unable to load material diffuse");
+      }
+
+      matData.albedo = glm::vec3(color.r, color.g, color.b);
+      matData.hasAlbedo = false;
 
       if (material->GetTextureCount(aiTextureType_DIFFUSE)) {
         Texture& texture = matData.diffuse;
+        matData.hasAlbedo = true;
         texture.texture_ref = NULL;
         std::string texturePath;
         {
@@ -398,8 +457,14 @@ void Model::render(
   {
     std::scoped_lock l(m);
 
-    gfx::Material* usedMaterial = material ? material : gfx_material.get();
+    bool useDf = !device->getEngine()->getMaterialCache()->getPreferNoDF() &&
+                 mdl_render_deferred.getBool();
+    gfx::Material* usedMaterial =
+        material ? material
+                 : (useDf ? gfx_materialDf.get() : gfx_material.get());
     gfx::BaseProgram* bp = usedMaterial->prepareDevice(device, 0);
+
+    if (!bp) throw std::runtime_error("bp == NULL");
 
     device->getEngine()->getCurrentViewport()->getLightingManager().upload(
         glm::vec3(0), bp);
@@ -408,15 +473,17 @@ void Model::render(
 
     for (auto& [name, mesh] : meshes) {
       Material& mat = materials[mesh.material];
-      gfx::BaseTexture* texture = mat.diffuse.external
-                                      ? mat.diffuse.texture_ref->getTexture()
-                                      : mat.diffuse.texture.get();
-      bp->setParameter("diffuse", gfx::DtSampler,
+      gfx::BaseTexture* texture =
+          mat.hasAlbedo
+              ? (mat.diffuse.external ? mat.diffuse.texture_ref->getTexture()
+                                      : mat.diffuse.texture.get())
+              : device->getEngine()->getWhiteTexture();
+      bp->setParameter("albedo_texture", gfx::DtSampler,
                        {
-                           .texture.texture = texture,
-                           .texture.slot = 0,
+                           .texture = {.slot = 0, .texture = texture},
                        });
-
+      bp->setParameter("Material", gfx::DtBuffer,
+                       {.buffer = {.slot = 0, .buffer = mat.pbrData.get()}});
       bp->bind();
       mesh.render(device);
     }
@@ -477,7 +544,7 @@ void Model::Animator::upload(gfx::BaseProgram* program) {
     boneUniformBuffer->uploadSub(0, sizeof(boneMatrices), boneMatrices);
     program->setParameter(
         "BoneTransformBlock", gfx::DtBuffer,
-        {.buffer.buffer = boneUniformBuffer.get(), .buffer.slot = 0});
+        {.buffer = {.slot = 1, .buffer = boneUniformBuffer.get()}});
   } else {
     throw std::runtime_error("Call Animator::initBuffer");
     /*for (int i = 0; i < MODEL_MAX_BONE_TRANSFORMS; i++)

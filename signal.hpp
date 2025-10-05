@@ -1,7 +1,9 @@
 #pragma once
 #include <cxxabi.h>
+#include <lua.h>
 
 #include <functional>
+#include <lua.hpp>
 #include <map>
 #include <mutex>
 #include <stdexcept>
@@ -9,6 +11,10 @@
 #include "logging.hpp"
 
 namespace rdm {
+namespace script {
+class Script;
+}
+
 typedef size_t ClosureId;
 
 ClosureId __newClosureId();

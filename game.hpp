@@ -1,18 +1,24 @@
 #pragma once
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include <memory>
 
 #include "console.hpp"
 #include "gfx/engine.hpp"
+#include "object.hpp"
 #include "resource.hpp"
+#include "script/script_context.hpp"
 #include "security.hpp"
 #include "sound.hpp"
 #include "state.hpp"
+#include "window.hpp"
 #include "world.hpp"
 
 namespace rdm {
-class Game {
+class Game : public reflection::Object {
+  RDM_OBJECT;
+  RDM_OBJECT_DEF(Game, reflection::Object);
+
  protected:
   std::unique_ptr<Console> console;
   std::unique_ptr<World> worldServer;
@@ -22,11 +28,11 @@ class Game {
   std::unique_ptr<GameState> gameState;
   std::unique_ptr<ResourceManager> resourceManager;
   std::unique_ptr<SecurityManager> securityManager;
+  std::unique_ptr<AbstractionWindow> window;
 
  private:
   std::string iconImg;
   bool dirtyIcon;
-  SDL_Window* window;
   bool ignoreNextMouseMoveEvent;
   bool initialized;
   bool silence;
@@ -70,6 +76,8 @@ class Game {
     iconImg = icon;
     dirtyIcon = true;
   }
+
+  std::string getIcon() { return iconImg; }
 
   Console* getConsole() { return console.get(); }
 

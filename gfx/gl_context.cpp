@@ -1,13 +1,17 @@
 #include "gl_context.hpp"
 
-#include <glad/glad.h>
+#include <EGL/egl.h>
+#include <EGL/eglplatform.h>
+#define GLAD_EGL_IMPLEMENTATION
+#include <glad/egl.h>
 
 #include <stdexcept>
 
-#include "SDL_video.h"
+#include "SDL3/SDL_video.h"
 #include "base_context.hpp"
 #include "logging.hpp"
 #include "settings.hpp"
+#include "window.hpp"
 
 #ifndef DISABLE_EASY_PROFILER
 #include <easy/profiler.h>
@@ -36,30 +40,105 @@ void GLContext::updateVsync() {
     Log::printf(LOG_INFO, "enabling %s vsync",
                 r_gladaptivevsync.getBool() ? "adaptive" : "synchronized");
 
-    bool success = SDL_GL_SetSwapInterval(r_gladaptivevsync.getBool() ? -1 : 1);
+    bool success =
+        eglSwapInterval(eglDisplay, r_gladaptivevsync.getBool() ? -1 : 1);
 
     if (!success) {
       if (r_gladaptivevsync.getBool()) {
         Log::printf(LOG_WARN,
                     "adaptive vsync unsupported, using synchronized vsync");
-        SDL_GL_SetSwapInterval(1);
+        eglSwapInterval(eglDisplay, 1);
       }
     }
   } else {
     Log::printf(LOG_INFO, "disabling vsync");
-    SDL_GL_SetSwapInterval(0);
+    eglSwapInterval(eglDisplay, 0);
   }
 }
 
-GLContext::GLContext(void* hwnd) : BaseContext(hwnd) {
-  context = SDL_GL_CreateContext((SDL_Window*)hwnd);
-  if (!context)
-    Log::printf(LOG_FATAL, "Unable to create GLContext (%s)", SDL_GetError());
+#define COLOR_SPACE EGL_COLORSPACE_sRGB
+#define ALPHA_FORMAT EGL_ALPHA_FORMAT_NONPRE
+#define SURFACE_TYPE EGL_WINDOW_BIT | EGL_PBUFFER_BIT
+
+static const EGLint s_surfaceAttribs[] = {
+    EGL_COLORSPACE, COLOR_SPACE, EGL_ALPHA_FORMAT, ALPHA_FORMAT, EGL_NONE};
+
+static const EGLint s_configAttribs[] = {EGL_RED_SIZE,
+                                         8,
+                                         EGL_GREEN_SIZE,
+                                         8,
+                                         EGL_BLUE_SIZE,
+                                         8,
+                                         EGL_ALPHA_SIZE,
+                                         8,
+                                         EGL_LUMINANCE_SIZE,
+                                         EGL_DONT_CARE,
+                                         EGL_SURFACE_TYPE,
+                                         SURFACE_TYPE,
+                                         EGL_RENDERABLE_TYPE,
+                                         EGL_OPENVG_BIT& EGL_OPENGL_ES_BIT,
+                                         EGL_BIND_TO_TEXTURE_RGBA,
+                                         EGL_TRUE,
+                                         EGL_NONE};
+
+/*static const EGLint s_pbufferAttribs[] = {
+  EGL_WIDTH,        PBUFFER_WIDTH,      EGL_HEIGHT,
+  PBUFFER_HEIGHT,   EGL_COLORSPACE,     COLOR_SPACE,
+  EGL_ALPHA_FORMAT, ALPHA_FORMAT,       EGL_TEXTURE_FORMAT,
+  EGL_TEXTURE_RGBA, EGL_TEXTURE_TARGET, EGL_TEXTURE_2D,
+  EGL_NONE};
+*/
+
+GLContext::GLContext(AbstractionWindow* hwnd) : BaseContext(hwnd) {
+  int eglVersion = gladLoaderLoadEGL(NULL);
+  if (!eglVersion) {
+    throw std::runtime_error("Unable to load EGL");
+  }
+  Log::printf(LOG_DEBUG, "Loaded EGL %d.%d", GLAD_VERSION_MAJOR(eglVersion),
+              GLAD_VERSION_MINOR(eglVersion));
+  eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+  if (eglDisplay == EGL_NO_DISPLAY) {
+    throw std::runtime_error("No EGL display");
+  }
+  EGLint major, minor;
+  if (!eglInitialize(eglDisplay, &major, &minor)) {
+    throw std::runtime_error("Could not initialize EGL");
+  }
+  eglVersion = gladLoaderLoadEGL(eglDisplay);
+  if (!eglVersion) {
+    throw std::runtime_error("Unable to load EGL (2)");
+  }
+  Log::printf(LOG_DEBUG, "Loaded EGL %d.%d after reload",
+              GLAD_VERSION_MAJOR(eglVersion), GLAD_VERSION_MINOR(eglVersion));
+
+  EGLint numConfigs;
+  eglGetConfigs(eglDisplay, NULL, 0, &numConfigs);
+  eglChooseConfig(eglDisplay, s_configAttribs, &eglConfig, 1, &numConfigs);
+  windowSurface = eglCreateWindowSurface(eglDisplay, eglConfig,
+                                         (NativeWindowType)hwnd->getGfxHwnd(),
+                                         s_surfaceAttribs);
+
+  EGLint attributes[] = {
+      EGL_CONTEXT_MAJOR_VERSION,
+      3,
+      EGL_CONTEXT_MINOR_VERSION,
+      3,
+      EGL_CONTEXT_OPENGL_PROFILE_MASK,
+      EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+#ifndef NDEBUG
+      EGL_CONTEXT_OPENGL_DEBUG,
+      EGL_TRUE,
+#endif
+      EGL_NONE,
+  };
+
+  eglBindAPI(EGL_OPENGL_API);
+  context = eglCreateContext(eglDisplay, eglConfig, NULL, attributes);
 
   setCurrent();
-  if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
-    Log::printf(LOG_FATAL, "Unable to initialize GLAD");
-  }
+  int glVersion = gladLoaderLoadGL();
+  Log::printf(LOG_DEBUG, "Loaded GL %d.%d", GLAD_VERSION_MAJOR(glVersion),
+              GLAD_VERSION_MINOR(glVersion));
   updateVsync();
   r_glvsync.changing.listen([this] { updateVsync(); });
   if (r_gldebug.getBool()) {
@@ -68,9 +147,9 @@ GLContext::GLContext(void* hwnd) : BaseContext(hwnd) {
     glDebugMessageCallback(MessageCallback, 0);
   }
 
-  Log::printf(LOG_EXTERNAL, "Vendor:   %s", glGetString(GL_VENDOR));
-  Log::printf(LOG_EXTERNAL, "Renderer: %s", glGetString(GL_RENDERER));
-  Log::printf(LOG_EXTERNAL, "Version:  %s", glGetString(GL_VERSION));
+  Log::printf(LOG_DEBUG, "Vendor:   %s", glGetString(GL_VENDOR));
+  Log::printf(LOG_DEBUG, "Renderer: %s", glGetString(GL_RENDERER));
+  Log::printf(LOG_DEBUG, "Version:  %s", glGetString(GL_VERSION));
 
   glEnable(GL_DITHER);
   glClearColor(0.0, 0.0, 0.0, 0.0);  // clear because the first frame takes so
@@ -83,72 +162,22 @@ void GLContext::swapBuffers() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
 #endif
-  SDL_GL_SwapWindow((SDL_Window*)getHwnd());
+  eglSwapBuffers(eglDisplay, windowSurface);
 }
 
 void GLContext::setCurrent() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
 #endif
-  if (SDL_GL_MakeCurrent((SDL_Window*)getHwnd(), context)) {
-    Log::printf(LOG_FATAL, "Unable to make context current (%s)",
-                SDL_GetError());
-  }
+  eglMakeCurrent(eglDisplay, windowSurface, windowSurface, context);
 }
 
 void GLContext::unsetCurrent() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
 #endif
-  SDL_GL_MakeCurrent((SDL_Window*)getHwnd(), NULL);
+  eglMakeCurrent(eglDisplay, NULL, NULL, NULL);
 }
 
-glm::ivec2 GLContext::getBufferSize() {
-  glm::ivec2 z;
-  SDL_GetWindowSize((SDL_Window*)getHwnd(), &z.x, &z.y);
-  return z;
-}
-
-int GLContext::prepareSdl() {
-  int context_flags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
-#ifndef NDEBUG
-  context_flags |= SDL_GL_CONTEXT_DEBUG_FLAG;
-#endif
-
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, context_flags);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-
-  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-  SDL_GL_LoadLibrary(NULL);
-
-  return SDL_WINDOW_OPENGL;
-}
-
-std::vector<BaseContext::DisplayMode> GLContext::getSupportedDisplayModes() {
-  std::vector<BaseContext::DisplayMode> modes;
-  for (int displayIdx = 0; displayIdx < SDL_GetNumVideoDisplays();
-       displayIdx++) {
-    for (int modeIdx = 0; modeIdx < SDL_GetNumDisplayModes(displayIdx);
-         modeIdx++) {
-      SDL_DisplayMode dpmMode;
-      SDL_GetDisplayMode(displayIdx, modeIdx, &dpmMode);
-      DisplayMode mode;
-      mode.w = dpmMode.w;
-      mode.h = dpmMode.h;
-      mode.display = displayIdx;
-      mode.refresh_rate = dpmMode.refresh_rate;
-      modes.push_back(mode);
-    }
-  }
-  return modes;
-}
+glm::ivec2 GLContext::getBufferSize() { return getHwnd()->getWindowSize(); }
 }  // namespace rdm::gfx::gl

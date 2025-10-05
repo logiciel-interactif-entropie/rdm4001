@@ -3,6 +3,7 @@
 
 #include "base_context.hpp"
 #include "base_types.hpp"
+#include "object.hpp"
 
 namespace rdm::gfx {
 class Engine;
@@ -199,14 +200,6 @@ class BaseDevice {
 
   virtual void targetAttachments(BaseFrameBuffer::AttachmentPoint* attachments,
                                  int count) = 0;
-
-  /**
-   * @brief Beginning of imgui frame
-   *
-   * @todo port imgui itself to engine system
-   */
-  virtual void startImGui() = 0;
-  virtual void stopImGui() = 0;
 
   virtual void dbgPushGroup(std::string message) = 0;
   virtual void dbgPopGroup() = 0;

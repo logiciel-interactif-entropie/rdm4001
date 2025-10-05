@@ -1,0 +1,9 @@
+{
+    "Mods": [
+	{
+	    "Path": "luapg/example.pak",
+	    "URI": "example",
+	    "Exec": "example://main.lua"
+	}
+    ]
+}

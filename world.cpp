@@ -4,10 +4,15 @@
 #include <format>
 
 #include "fun.hpp"
+#include "game.hpp"
 #include "input.hpp"
+#include "localization.hpp"
 #include "logging.hpp"
+#include "object.hpp"
+#include "object_property.hpp"
 #include "physics.hpp"
 #include "scheduler.hpp"
+#include "script/script.hpp"
 #include "settings.hpp"
 
 namespace rdm {
@@ -78,12 +83,22 @@ class WorldTitleJob : public SchedulerJob {
   }
 };
 
+RDM_REFLECTION_BEGIN_DESCRIBED(World);
+RDM_REFLECTION_PROPERTY_STRING(World, Title, &World::getTitle,
+                               &World::setTitle);
+RDM_REFLECTION_PROPERTY_STRING(World, Name, &World::getName, NULL);
+RDM_REFLECTION_PROPERTY_OBJECT(World, Game, &World::getGame, NULL);
+RDM_REFLECTION_PROPERTY_EVENT(World, Stepped, &World::getLuaStepped);
+// RDM_REFLECTION_PROPERTY_FLOAT(
+//  World, Time, [](World* world) { return world->getWorldJob(); }, NULL);
+RDM_REFLECTION_END_DESCRIBED();
+
 World::World(WorldConstructorSettings settings) {
   title = "A rdm presentation";
   name = settings.name;
 
   scheduler.reset(new Scheduler());
-  scheduler->addJob(new WorldJob(this));
+  worldJob = scheduler->addJob(new WorldJob(this));
   scheduler->addJob(new WorldTitleJob(this));
 
   if (settings.physics) physics.reset(new PhysicsWorld(this));
@@ -97,12 +112,16 @@ World::World(WorldConstructorSettings settings) {
     std::scoped_lock lock(worldLock);
     running = false;
   });
+
+  scriptContext.reset(new script::ScriptContext(this));
+
+  stepped.listen([this] { luaStepped.fire([](lua_State* L) { return 0; }); });
 }
 
 World::~World() {
-  Log::printf(LOG_DEBUG,
-              "Dtor on world, running = %s. We hope to see you soon.",
-              running ? "true" : "false");
+  Log::printf(LOG_DEBUG, "Dtor on world, running = %s. %s",
+              running ? "true" : "false",
+              Lc(RDM_WORLD_DTOR_GOODBYE, "We hope to see you soon."));
   setRunning(false);
   getScheduler()->waitToWrapUp();
 }
