@@ -9,7 +9,6 @@
 #include "BulletCollision/CollisionDispatch/btCollisionObject.h"
 #include "LinearMath/btVector3.h"
 #include "alc.h"
-#include "gfx/imgui/imgui.h"
 #include "input.hpp"
 #include "logging.hpp"
 #include "physics.hpp"
@@ -81,25 +80,6 @@ FpsController::FpsController(PhysicsWorld* world,
 FpsController::~FpsController() {
   world->getWorld()->removeRigidBody(rigidBody.get());
   world->physicsStepping.removeListener(stepJob);
-}
-
-void FpsController::imguiDebug() {
-  btTransform transform;
-  motionState->getWorldTransform(transform);
-  ImGui::Begin("FPS Controller");
-  ImGui::Text("Pos: %f, %f, %f", transform.getOrigin().x(),
-              transform.getOrigin().y(), transform.getOrigin().z());
-  ImGui::Text("Vel: %f, %f, %f", rigidBody->getLinearVelocity().x(),
-              rigidBody->getLinearVelocity().y(),
-              rigidBody->getLinearVelocity().z());
-  ImGui::Text("Enable: %s", enable ? "true" : "false");
-  ImGui::Text("Local Player: %s", localPlayer ? "true" : "false");
-  ImGui::SliderFloat("Max Accel", &settings.maxAccel, 0.f, 100.f);
-  ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 0.f, 1000.f);
-  ImGui::SliderFloat("Friction", &settings.friction, 0.f, 100.f);
-  ImGui::SliderFloat("Stop Speed", &settings.stopSpeed, 0.f, 100.f);
-  ImGui::SliderFloat("Jump Impulse", &settings.jumpImpulse, 0.f, 200.f);
-  ImGui::End();
 }
 
 void FpsController::teleport(glm::vec3 p) {

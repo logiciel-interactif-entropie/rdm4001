@@ -5,10 +5,8 @@
 #include <memory>
 #include <string>
 
-#include "SDL3_ttf/SDL_ttf.h"
 namespace rdm::gfx::gui {
 struct Font {
-  TTF_Font* font;
   void* fontDataRef;
 
   ~Font();

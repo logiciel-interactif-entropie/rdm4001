@@ -52,7 +52,7 @@ elif build_machine.system() == 'linux'
     inc_dirs += ['/ucrt64/include/bullet']
   else
     readline = dependency('libeditline')
-    inc_dirs += ['/usr/include/bullet']
+    # inc_dirs += ['/usr/include/bullet']
   endif
 elif build_machine.system() == 'windows'
   readline = dependency('wineditline')
@@ -73,14 +73,13 @@ xtra_src = []
 
 sdl = dependency('sdl3', required: get_option('sdl'))
 if sdl.found()
-  sdl_ttf = dependency('sdl3-ttf')
   xtra_src += [
     'sdl_window.cpp',
     'sdl_window.hpp',
     'gfx/imgui/backends/imgui_impl_sdl3.cpp',
   ]
   game_deps += [
-    sdl, sdl_ttf 
+    sdl
   ]
   add_project_arguments('-DRDM4001_FEATURE_SDL', language: ['cpp'])
 else

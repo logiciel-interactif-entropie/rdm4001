@@ -134,12 +134,17 @@ GLContext::GLContext(AbstractionWindow* hwnd) : BaseContext(hwnd) {
 
   eglBindAPI(EGL_OPENGL_API);
   context = eglCreateContext(eglDisplay, eglConfig, NULL, attributes);
+  if (!context) {
+    throw std::runtime_error("Unable to create EGL context");
+  }
 
   setCurrent();
   int glVersion = gladLoaderLoadGL();
+  if (!glVersion) {
+    throw std::runtime_error("Unable to load GL");
+  }
   Log::printf(LOG_DEBUG, "Loaded GL %d.%d", GLAD_VERSION_MAJOR(glVersion),
               GLAD_VERSION_MINOR(glVersion));
-  updateVsync();
   r_glvsync.changing.listen([this] { updateVsync(); });
   if (r_gldebug.getBool()) {
     glEnable(GL_DEBUG_OUTPUT);
@@ -156,6 +161,8 @@ GLContext::GLContext(AbstractionWindow* hwnd) : BaseContext(hwnd) {
                                      // long it renders garbled graphics
   glClear(GL_COLOR_BUFFER_BIT);
   swapBuffers();
+
+  updateVsync();
 }
 
 void GLContext::swapBuffers() {
@@ -169,14 +176,16 @@ void GLContext::setCurrent() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
 #endif
-  eglMakeCurrent(eglDisplay, windowSurface, windowSurface, context);
+  if (!eglMakeCurrent(eglDisplay, windowSurface, windowSurface, context)) {
+    Log::printf(LOG_ERROR, "eglMakeCurrent returned %04x", eglGetError());
+  }
 }
 
 void GLContext::unsetCurrent() {
 #ifndef DISABLE_EASY_PROFILER
   EASY_FUNCTION();
 #endif
-  eglMakeCurrent(eglDisplay, NULL, NULL, NULL);
+  eglMakeCurrent(eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
 glm::ivec2 GLContext::getBufferSize() { return getHwnd()->getWindowSize(); }

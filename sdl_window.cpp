@@ -187,7 +187,9 @@ void SDLWindow::eventLoop() {
     }*/
 }
 
-void SDLWindow::setTitle(std::string title) {};
+void SDLWindow::setTitle(std::string title) {
+  SDL_SetWindowTitle(window, title.c_str());
+};
 
 /* GIMP RGB C-Source image dump */
 

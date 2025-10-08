@@ -72,8 +72,6 @@ class FpsController {
   void serialize(network::BitStream& stream);
   void deserialize(network::BitStream& stream, bool backend = false);
 
-  void imguiDebug();
-
   void teleport(glm::vec3 p);
 
   glm::vec3 getNetworkPosition() { return networkPosition; }
